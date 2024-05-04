@@ -48,6 +48,7 @@ private:
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     std::vector<VkImage> swapChainImages;
+    std::vector<VkImageView> swapChainImageViews;
     VkFormat swapChainImageFormat{};
     VkExtent2D swapChainExtent{};
     std::vector<VkExtensionProperties> extensions;
@@ -83,6 +84,7 @@ private:
     QueueFamilyIndices findNeededQueueFamilyIndices(VkPhysicalDevice device);
     void createLogicalDevice();
     void createSwapChain();
+    void createImageViews();
     void mainLoop();
     void cleanup();
 

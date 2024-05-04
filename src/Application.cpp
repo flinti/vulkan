@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fmt/core.h>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -50,6 +51,7 @@ void Application::initVulkan()
 	findAndChooseDevice();
 	createLogicalDevice();
 	createSwapChain();
+	createImageViews();
 }
 
 void Application::createSurface()
@@ -480,6 +482,37 @@ void Application::createSwapChain()
 	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
 	swapChainImageFormat = surfaceFormat.format;
 	swapChainExtent = extent;
+
+	log.info(fmt::format("swap chain with {} images created.", imageCount));
+}
+
+void Application::createImageViews()
+{
+	log.info("creating swap chain image views...");
+
+	swapChainImageViews.resize(swapChainImages.size());
+
+	for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
+		VkImageViewCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = swapChainImages[i];
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = swapChainImageFormat;
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		VkResult result = vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]);
+		if (result != VK_SUCCESS) {
+			throw std::runtime_error(fmt::format("vkCreateImageView failed with code {}", (int32_t) result));
+		}
+	}
 }
 
 void Application::mainLoop()
@@ -494,6 +527,9 @@ void Application::cleanup()
 {
 	log.info("cleaning up...");
 
+	for (auto &imageView : swapChainImageViews) {
+		vkDestroyImageView(device, imageView, nullptr);
+	}
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
 	vkDestroyDevice(device, nullptr);
 
