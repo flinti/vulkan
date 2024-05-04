@@ -1,3 +1,4 @@
+#include <memory>
 #include <spdlog/common.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -11,16 +12,24 @@
 
 int main()
 {
-    spdlog::logger log("main");
-    log.set_level(spdlog::level::debug);
-    Application app(log);
+    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    stdout_sink->set_level(spdlog::level::trace);
 
-    std::cout << "BLA";
+    spdlog::logger log("main", {stdout_sink});
+    log.set_level(spdlog::level::info);
+
+#ifdef NDEBUG
+    log.info("Release build.");
+#else
+    log.info("Debug build");
+#endif
+
+    Application app(log, true);
 
     try {
         app.run();
     } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        log.critical(e.what());
         return 1;
     }
 
