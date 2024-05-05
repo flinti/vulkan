@@ -1,9 +1,11 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
+#include <cstddef>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <vector>
@@ -85,8 +87,11 @@ private:
     void createLogicalDevice();
     void createSwapChain();
     void createImageViews();
+    void createGraphicsPipeline();
+    VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
     void cleanup();
+    std::vector<std::byte> readFile(std::filesystem::path path);
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT, 

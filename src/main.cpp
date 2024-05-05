@@ -5,9 +5,6 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#include <iostream>
-#include <stdexcept>
-
 #include "Application.h"
 
 int main()

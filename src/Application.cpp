@@ -1,9 +1,13 @@
 #include "Application.h"
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fmt/core.h>
+#include <fstream>
+#include <ios>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -52,6 +56,7 @@ void Application::initVulkan()
 	createLogicalDevice();
 	createSwapChain();
 	createImageViews();
+	createGraphicsPipeline();
 }
 
 void Application::createSurface()
@@ -515,6 +520,47 @@ void Application::createImageViews()
 	}
 }
 
+void Application::createGraphicsPipeline()
+{
+	auto vertexShader = readFile("compiled/shader.vert");
+	auto fragmentShader = readFile("compiled/shader.frag");
+
+	VkShaderModule vertShaderModule = createShaderModule(vertexShader);
+    VkShaderModule fragShaderModule = createShaderModule(fragmentShader);
+
+	VkPipelineShaderStageCreateInfo shaderStageInfos[2] = {};
+	shaderStageInfos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStageInfos[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shaderStageInfos[0].module = vertShaderModule;
+	shaderStageInfos[0].pName = "main";
+
+	shaderStageInfos[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStageInfos[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shaderStageInfos[1].module = fragShaderModule;
+	shaderStageInfos[1].pName = "main";
+
+	// TODO
+
+	vkDestroyShaderModule(device, vertShaderModule, nullptr);
+	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+}
+
+VkShaderModule Application::createShaderModule(const std::vector<std::byte> &shader)
+{
+	VkShaderModuleCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = shader.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(shader.data());
+
+	VkShaderModule shaderModule = VK_NULL_HANDLE;
+	VkResult result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error(fmt::format("vkCreateShaderModule failed with code {}", (int32_t) result));
+	}
+
+	return shaderModule;
+}
+
 void Application::mainLoop()
 {
 	log.info("starting main loop...");
@@ -545,6 +591,28 @@ void Application::cleanup()
 	vkDestroyInstance(instance, nullptr);
 	glfwDestroyWindow(window);
 	glfwTerminate();
+}
+
+std::vector<std::byte> Application::readFile(std::filesystem::path path)
+{
+	std::ifstream file(path, std::ios::binary | std::ios::ate);
+	auto len = file.tellg();
+	if (len <= -1) {
+		throw std::runtime_error(fmt::format("tellg on file {} failed", path.string()));
+	}
+	if (len == 0) {
+		return std::vector<std::byte>{};
+	}
+	std::vector<std::byte> buf(len);
+	file.seekg(0).read(reinterpret_cast<char *>(buf.data()), len);
+
+	if(file.fail()) {
+		throw std::runtime_error(fmt::format("reading file {} failed", path.string()));
+	}
+
+	file.close();
+
+	return buf;
 }
 
 
