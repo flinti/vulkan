@@ -53,6 +53,9 @@ private:
     std::vector<VkImageView> swapChainImageViews;
     VkFormat swapChainImageFormat{};
     VkExtent2D swapChainExtent{};
+    VkRenderPass renderPass;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
     std::vector<const char *> requiredValidationLayers = {
@@ -87,6 +90,7 @@ private:
     void createLogicalDevice();
     void createSwapChain();
     void createImageViews();
+    void createRenderPass();
     void createGraphicsPipeline();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
