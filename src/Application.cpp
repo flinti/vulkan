@@ -20,19 +20,21 @@ Application::Application(spdlog::logger &log, bool enableValidationLayers)
 	: log(log),
 	isValidationLayersEnabled(enableValidationLayers)
 {
+
+	initWindow();
+	initVulkan();
 }
+
 Application::~Application()
 {
 	log.info("running application destructor...");
+	cleanup();
 }
 
 
 void Application::run()
 {
-	initWindow();
-	initVulkan();
 	mainLoop();
-	cleanup();
 }
 
 void Application::initWindow()

@@ -21,9 +21,8 @@ int main()
     log.info("Debug build");
 #endif
 
-    Application app(log, true);
-
     try {
+        Application app(log, true);
         app.run();
     } catch (const std::exception& e) {
         log.critical(e.what());
