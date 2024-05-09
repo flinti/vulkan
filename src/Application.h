@@ -56,6 +56,8 @@ private:
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
     std::vector<const char *> requiredValidationLayers = {
@@ -92,6 +94,7 @@ private:
     void createImageViews();
     void createRenderPass();
     void createGraphicsPipeline();
+    void createFramebuffers();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
     void cleanup();

@@ -58,6 +58,7 @@ void Application::initVulkan()
 	createImageViews();
 	createRenderPass();
 	createGraphicsPipeline();
+	createFramebuffers();
 }
 
 void Application::createSurface()
@@ -691,6 +692,27 @@ void Application::createGraphicsPipeline()
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 }
 
+void Application::createFramebuffers()
+{
+	swapChainFramebuffers.resize(swapChainImageViews.size());
+
+	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = &swapChainImageViews[i];
+		framebufferInfo.width = swapChainExtent.width;
+		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+		VkResult result = vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
+		if (result != VK_SUCCESS) {
+			throw std::runtime_error(fmt::format("failed to create framebuffer!"));
+		}
+	}
+}
+
 VkShaderModule Application::createShaderModule(const std::vector<std::byte> &shader)
 {
 	VkShaderModuleCreateInfo createInfo{};
@@ -719,6 +741,9 @@ void Application::cleanup()
 {
 	log.info("cleaning up...");
 
+	for (auto &framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
