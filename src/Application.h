@@ -53,10 +53,12 @@ private:
     std::vector<VkImageView> swapChainImageViews;
     VkFormat swapChainImageFormat{};
     VkExtent2D swapChainExtent{};
-    VkRenderPass renderPass;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkRenderPass renderPass = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline graphicsPipeline = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> swapChainFramebuffers;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
@@ -95,6 +97,9 @@ private:
     void createRenderPass();
     void createGraphicsPipeline();
     void createFramebuffers();
+    void createCommandPool();
+    void createCommandBuffer();
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
     void cleanup();
