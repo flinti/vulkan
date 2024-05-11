@@ -34,12 +34,13 @@ public:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
 
-	Application(spdlog::logger &log, bool enableValidationLayers);
+	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames);
 	~Application();
 	void run();
 private:
 	spdlog::logger &log;
 
+    uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
@@ -57,11 +58,12 @@ private:
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> swapChainFramebuffers;
+    uint32_t currentFrame = 0;
     VkCommandPool commandPool = VK_NULL_HANDLE;
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
-    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
-    VkFence frameFence = VK_NULL_HANDLE;
+    std::vector<VkCommandBuffer> commandBuffers;
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> frameFences;
 
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
@@ -101,7 +103,7 @@ private:
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPool();
-    void createCommandBuffer();
+    void createCommandBuffers();
     void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
