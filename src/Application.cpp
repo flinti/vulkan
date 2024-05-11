@@ -43,9 +43,11 @@ void Application::initWindow()
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+	glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResized);
 }
 
 void Application::initVulkan()
@@ -498,6 +500,27 @@ void Application::createSwapChain()
 	log.info(fmt::format("swap chain with {} images created.", imageCount));
 }
 
+void Application::recreateSwapChain() {
+    vkDeviceWaitIdle(device);
+
+	cleanupSwapChain();
+
+    createSwapChain();
+    createImageViews();
+    createFramebuffers();
+}
+
+void Application::cleanupSwapChain()
+{
+	for (auto &framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+	for (auto &imageView : swapChainImageViews) {
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
 void Application::createImageViews()
 {
 	log.info("creating swap chain image views...");
@@ -857,7 +880,6 @@ VkShaderModule Application::createShaderModule(const std::vector<std::byte> &sha
 void Application::draw()
 {
 	vkWaitForFences(device, 1, &frameFences[currentFrame], VK_TRUE, UINT64_MAX);
-	vkResetFences(device, 1, &frameFences[currentFrame]);
 
 	uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
@@ -868,9 +890,17 @@ void Application::draw()
 		VK_NULL_HANDLE, 
 		&imageIndex
 	);
-	if (result != VK_SUCCESS) {
-		log.error("vkAcquireNextImageKHR returned code {}", (int32_t) result);
+	// framebufferJustResized is handled near the end of this function (deviating from the tutorial) 
+	// to avoid that the image available semaphore occasionally remains signalled
+	if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR) {
+		recreateSwapChain();
+		return;
 	}
+	else if (result != VK_SUCCESS) {
+		log.error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
+	}
+
+	vkResetFences(device, 1, &frameFences[currentFrame]);
 
 	result = vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	if (result != VK_SUCCESS) {
@@ -903,8 +933,12 @@ void Application::draw()
 	presentInfo.pImageIndices = &imageIndex;
 
 	result = vkQueuePresentKHR(presentQueue, &presentInfo);
-	if (result != VK_SUCCESS) {
-		log.error("vkQueuePresentKHR returned code {}", (int32_t) result);
+	if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR || needsSwapChainRecreation) {
+		needsSwapChainRecreation = false;
+		recreateSwapChain();
+	}
+	else if (result != VK_SUCCESS) {
+		log.error("vkQueuePresentKHR failed with code {}", (int32_t) result);
 	}
 
 	currentFrame = (currentFrame + 1) % concurrentFrames;
@@ -915,7 +949,9 @@ void Application::mainLoop()
 	log.info("starting main loop...");
 	while (!glfwWindowShouldClose(window)) {
 		glfwPollEvents();
-		draw();
+		if (!paused) {
+			draw();
+		}
 	}
 
 	vkDeviceWaitIdle(device);
@@ -932,16 +968,10 @@ void Application::cleanup()
 	}
 
 	vkDestroyCommandPool(device, commandPool, nullptr);
-	for (auto &framebuffer : swapChainFramebuffers) {
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
-    }
+	cleanupSwapChain();
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
-	for (auto &imageView : swapChainImageViews) {
-		vkDestroyImageView(device, imageView, nullptr);
-	}
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
 	vkDestroyDevice(device, nullptr);
 
 	if (isValidationLayersEnabled) {
@@ -992,4 +1022,16 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Application::debugCallback(
     myThis->log.info("validation layer: {}", pCallbackData->pMessage);
 
     return VK_FALSE;
+}
+
+void Application::framebufferResized(GLFWwindow* window, int width, int height)
+{
+	auto *myThis = static_cast<Application *>(glfwGetWindowUserPointer(window));
+	if (width <= 0 || height <= 0) {
+		myThis->paused = true;
+	}
+	else if (myThis->paused == true) {
+		myThis->paused = false;
+	}
+	myThis->needsSwapChainRecreation = true;
 }

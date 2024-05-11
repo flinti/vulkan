@@ -42,6 +42,7 @@ private:
 
     uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
+    bool paused = false;
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
@@ -64,6 +65,7 @@ private:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> frameFences;
+    bool needsSwapChainRecreation = false;
 
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
@@ -98,6 +100,8 @@ private:
     QueueFamilyIndices findNeededQueueFamilyIndices(VkPhysicalDevice device);
     void createLogicalDevice();
     void createSwapChain();
+    void recreateSwapChain();
+    void cleanupSwapChain();
     void createImageViews();
     void createRenderPass();
     void createGraphicsPipeline();
@@ -118,6 +122,7 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT*, 
         void *
     );
+    static void framebufferResized(GLFWwindow* window, int width, int height);
 };
 
 
