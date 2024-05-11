@@ -59,6 +59,9 @@ private:
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+    VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
+    VkFence frameFence = VK_NULL_HANDLE;
 
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
@@ -99,9 +102,11 @@ private:
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffer();
+    void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
+    void draw();
     void cleanup();
     std::vector<std::byte> readFile(std::filesystem::path path);
 
