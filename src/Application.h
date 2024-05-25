@@ -1,6 +1,8 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
+#include "Vertex.h"
+
 #include <cstddef>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -61,12 +63,15 @@ private:
     std::vector<VkFramebuffer> swapChainFramebuffers;
     uint32_t currentFrame = 0;
     VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> frameFences;
     bool needsSwapChainRecreation = false;
 
+    std::vector<Vertex> vertices;
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
     std::vector<const char *> requiredValidationLayers = {
@@ -107,6 +112,8 @@ private:
     void createGraphicsPipeline();
     void createFramebuffers();
     void createCommandPool();
+    void createVertexBuffer();
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createCommandBuffers();
     void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
