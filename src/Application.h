@@ -1,9 +1,13 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
+#include "GraphicsPipeline.h"
 #include "Vertex.h"
+#include "RenderPass.h"
+#include "SwapChain.h"
 
 #include <cstddef>
+#include <memory>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <cstdint>
@@ -27,11 +31,6 @@ public:
             return graphics.has_value() && present.has_value();
         }
     };
-    struct SwapChainSupportDetails {
-        VkSurfaceCapabilitiesKHR capabilities;
-        std::vector<VkSurfaceFormatKHR> formats;
-        std::vector<VkPresentModeKHR> presentModes;
-    };
 
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
@@ -52,15 +51,9 @@ private:
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     VkQueue presentQueue = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-    VkSwapchainKHR swapChain = VK_NULL_HANDLE;
-    std::vector<VkImage> swapChainImages;
-    std::vector<VkImageView> swapChainImageViews;
-    VkFormat swapChainImageFormat{};
-    VkExtent2D swapChainExtent{};
-    VkRenderPass renderPass = VK_NULL_HANDLE;
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline graphicsPipeline = VK_NULL_HANDLE;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
+    std::unique_ptr<SwapChain> swapChain;
+    std::unique_ptr<RenderPass> renderPass;
+    std::unique_ptr<GraphicsPipeline> graphicsPipeline;
     uint32_t currentFrame = 0;
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
@@ -98,30 +91,21 @@ private:
         const VkPhysicalDeviceFeatures &deviceFeatures
     );
     bool checkDeviceRequiredExtensionsSupport(VkPhysicalDevice device);
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice);
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
-    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
     QueueFamilyIndices findNeededQueueFamilyIndices(VkPhysicalDevice device);
     void createLogicalDevice();
-    void createSwapChain();
+    VkSurfaceFormatKHR chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
+    void createRenderPassAndSwapChain();
+    void createSwapChain(const SwapChainSupportDetails &swapChainSupportDetails, const VkSurfaceFormatKHR &chosenSurfaceFormat);
     void recreateSwapChain();
-    void cleanupSwapChain();
-    void createImageViews();
-    void createRenderPass();
-    void createGraphicsPipeline();
-    void createFramebuffers();
     void createCommandPool();
     void createVertexBuffer();
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createCommandBuffers();
     void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-    VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void mainLoop();
     void draw();
     void cleanup();
-    std::vector<std::byte> readFile(std::filesystem::path path);
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT, 

@@ -1,0 +1,70 @@
+#ifndef SWAP_CHAIN_H_
+#define SWAP_CHAIN_H_
+
+#include <cstdint>
+#include <vector>
+#include <vulkan/vulkan_core.h>
+
+class RenderPass;
+
+struct SwapChainSupportDetails {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
+
+class SwapChain
+{
+public:
+    SwapChain(
+        SwapChainSupportDetails swapChainSupportDetails,
+        VkSurfaceFormatKHR chosenSurfaceFormat,
+        VkDevice device,
+        VkSurfaceKHR surface,
+        const RenderPass &renderPass,
+        uint32_t framebufferWdt, 
+        uint32_t framebufferHgt, 
+        uint32_t graphicsQueueIdx, 
+        uint32_t presentQueueIdx
+    );
+    ~SwapChain();
+
+    VkResult acquireNextImage(uint32_t *imageIndex, VkSemaphore semaphore, VkFence fence = VK_NULL_HANDLE);
+    VkResult queuePresent(VkQueue presentQueue, uint32_t imageIndex, VkSemaphore semaphore);
+
+    const VkSwapchainKHR &getHandle() const;
+    const SwapChainSupportDetails &getSwapChainSupportDetails() const;
+    const VkSurfaceFormatKHR &getSurfaceFormat() const;
+    size_t getImageCount() const;
+    VkFramebuffer getFramebuffer(size_t index) const;
+    VkExtent2D getExtent() const;
+
+    static SwapChainSupportDetails querySwapChainSupportDetails(VkPhysicalDevice device, VkSurfaceKHR surface);
+private:
+    void cleanupSwapChain();
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities, uint32_t framebufferWdt, uint32_t framebufferHgt);
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes);
+
+    void createSwapChain(
+        uint32_t graphicsQueueIdx, 
+        uint32_t presentQueueIdx,
+        uint32_t framebufferWdt,
+        uint32_t framebufferHgt
+    );
+    void createImageViews();
+    void createFramebuffers();
+
+    VkSwapchainKHR swapChain = VK_NULL_HANDLE;
+    std::vector<VkImage> swapChainImages;
+    std::vector<VkImageView> swapChainImageViews;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+    VkExtent2D swapChainExtent{};
+    
+    VkDevice device = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    VkSurfaceFormatKHR surfaceFormat{};
+    SwapChainSupportDetails swapChainSupportDetails{};
+    const RenderPass &renderPass;
+};
+
+#endif

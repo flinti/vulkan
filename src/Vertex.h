@@ -1,3 +1,6 @@
+#ifndef VERTEX_H_
+#define VERTEX_H_
+
 #include <array>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
@@ -10,3 +13,4 @@ struct Vertex {
     static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
 };
 
+#endif
