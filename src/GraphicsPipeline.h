@@ -14,11 +14,11 @@ public:
 
     void bind(VkCommandBuffer commandBuffer);
 private:
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline pipeline = VK_NULL_HANDLE;
-
     void createGraphicsPipeline();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
+
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
 
     VkDevice device;
     const RenderPass &renderPass;

@@ -59,8 +59,8 @@ void Application::initVulkan()
 	createLogicalDevice();
 	createRenderPassAndSwapChain();
 	graphicsPipeline = std::make_unique<GraphicsPipeline>(device, *renderPass);
-	createVertexBuffer();
-	createCommandPool();
+	createCommandPools();
+	vertexBuffer = std::make_unique<Buffer>((void *) vertices.data(), vertices.size()*sizeof(vertices[0]), physicalDevice, device, VK_NULL_HANDLE, VK_NULL_HANDLE);
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -425,7 +425,7 @@ void Application::recreateSwapChain()
     createSwapChain(swapChainSupportDetails, chosenSurfaceFormat);
 }
 
-void Application::createCommandPool()
+void Application::createCommandPools()
 {
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -434,65 +434,17 @@ void Application::createCommandPool()
 
 	VkResult result = vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool);
 	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkCreateCommandPool with code {}", (int32_t) result));
+		throw std::runtime_error(fmt::format("vkCreateCommandPool failed with code {}", (int32_t) result));
 	}
-}
 
-void Application::createVertexBuffer()
-{
-	vertices = {
-        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-    };
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	poolInfo.queueFamilyIndex = selectedQueueFamilyIndices.graphics.value();
 
-	VkBufferCreateInfo bufferInfo{};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VkResult result = vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer);
+	result = vkCreateCommandPool(device, &poolInfo, nullptr, &transferCommandPool);
 	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkCreateBuffer failed with code {}", (int32_t) result));
-    }
-
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
-
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = findMemoryType(
-		memRequirements.memoryTypeBits, 
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-	);
-
-	result = vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkAllocateMemory: failed with code {}", (int32_t) result));
+		throw std::runtime_error(fmt::format("vkCreateCommandPool failed with code {}", (int32_t) result));
 	}
-
-	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
-
-	void *mappedMemory;
-	vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &mappedMemory);
-	memcpy(mappedMemory, vertices.data(), (size_t) bufferInfo.size);
-	vkUnmapMemory(device, vertexBufferMemory);
-}
-
-uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
-{
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-			return i;
-		}
-	}
-
-	throw std::runtime_error("findMemoryType: failed to find suitable memory type!");
 }
 
 void Application::createCommandBuffers()
@@ -586,7 +538,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 
-	VkBuffer vertexBuffers[] = {vertexBuffer};
+	VkBuffer vertexBuffers[] = {vertexBuffer->getHandle()};
 	VkDeviceSize offsets[] = {0};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
@@ -674,10 +626,10 @@ void Application::cleanup()
 		vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
 	}
 
-	vkDestroyCommandPool(device, commandPool, nullptr);
 	swapChain.reset();
-	vkDestroyBuffer(device, vertexBuffer, nullptr);
-    vkFreeMemory(device, vertexBufferMemory, nullptr);
+	vertexBuffer.reset();
+	vkDestroyCommandPool(device, transferCommandPool, nullptr);
+	vkDestroyCommandPool(device, commandPool, nullptr);
 	graphicsPipeline.reset();
 	renderPass.reset();
 	vkDestroyDevice(device, nullptr);
