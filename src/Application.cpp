@@ -60,7 +60,14 @@ void Application::initVulkan()
 	createRenderPassAndSwapChain();
 	graphicsPipeline = std::make_unique<GraphicsPipeline>(device, *renderPass);
 	createCommandPools();
-	vertexBuffer = std::make_unique<Buffer>((void *) vertices.data(), vertices.size()*sizeof(vertices[0]), physicalDevice, device, VK_NULL_HANDLE, VK_NULL_HANDLE);
+	vertexBuffer = std::make_unique<Buffer>(
+		(void *) vertices.data(), 
+		vertices.size()*sizeof(vertices[0]), 
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		physicalDevice, device, 
+		transferCommandPool, 
+		graphicsQueue
+		);
 	createCommandBuffers();
 	createSyncObjects();
 }

@@ -6,13 +6,13 @@
 #include <vulkan/vulkan_core.h>
 #include <stdexcept>
 
-Buffer::Buffer(void *data, size_t size, VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool transferPool, VkQueue transferQueue)
+Buffer::Buffer(void *data, size_t size, VkBufferUsageFlags usage, VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool transferPool, VkQueue transferQueue)
     : physicalDevice(physicalDevice), 
     device(device), 
     transferPool(transferPool), 
     transferQueue(transferQueue)
 {
-    createAndFillBuffer(data, size);
+    createAndFillBuffer(data, size, usage);
 }
 
 Buffer::~Buffer()
@@ -40,7 +40,7 @@ uint32_t Buffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
     throw std::runtime_error("Buffer::findMemoryType: failed to find suitable memory type!");
 }
 
-void Buffer::createBuffer(VkBuffer &buffer, VkDeviceMemory &deviceMemory, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+void Buffer::createBuffer(VkBuffer &buffer, VkDeviceMemory &bufferMemory, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -69,13 +69,86 @@ void Buffer::createBuffer(VkBuffer &buffer, VkDeviceMemory &deviceMemory, size_t
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
 }
 
-void Buffer::createAndFillBuffer(void *data, size_t size)
+void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-    createBuffer(buffer, bufferMemory, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = transferPool;
+    allocInfo.commandBufferCount = 1;
 
-    void *bufData;
-    vkMapMemory(device, bufferMemory, 0, size, 0, &bufData);
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkResult result = vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error(fmt::format("vkAllocateCommandBuffers failed with code {}", (int32_t) result));
+    }
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error(fmt::format("vkBeginCommandBuffer failed with code {}", (int32_t) result));
+    }
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.dstOffset = 0;
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+    result = vkEndCommandBuffer(commandBuffer);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error(fmt::format("vkEndCommandBuffer failed with code {}", (int32_t) result));
+    }
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    result = vkQueueSubmit(transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error(fmt::format("vkQueueSubmit failed with code {}", (int32_t) result));
+    }
+    result = vkQueueWaitIdle(transferQueue);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error(fmt::format("vkQueueWaitIdle failed with code {}", (int32_t) result));
+    }
+
+    vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
+}
+
+void Buffer::createAndFillBuffer(void *data, size_t size, VkBufferUsageFlags usage)
+{
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(
+        stagingBuffer, 
+        stagingBufferMemory, 
+        size, 
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    void* bufData;
+    vkMapMemory(device, stagingBufferMemory, 0, size, 0, &bufData);
     std::memcpy(bufData, data, size);
-    vkUnmapMemory(device, bufferMemory);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    createBuffer(
+        buffer, 
+        bufferMemory, 
+        size, 
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, 
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    copyBuffer(stagingBuffer, buffer, size);
+
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
