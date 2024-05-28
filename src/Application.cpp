@@ -1,12 +1,14 @@
 #include "Application.h"
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
+#include "Utility.h"
 
 #include <GLFW/glfw3.h>
 #include <fmt/core.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <glm/trigonometric.hpp>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -51,7 +53,27 @@ void Application::initWindow()
 
 void Application::initVulkan()
 {
+	const float r = 1.f;
+	const uint32_t edges = 50;
+	vertices.reserve(edges + 1);
+	indices.reserve(edges + 2);
+	vertices = {
+        {{-0.f, -0.f}, {1.0f, 1.0f, 1.0f}}
+    };
+	indices = {  0  };
+	for (uint32_t i = 0; i < edges; ++i) {
+		float phi = 2 * 3.1415926f / edges * i;
+		float x = r * glm::cos(phi);
+		float y = r * glm::sin(phi);
+		Vertex &v = vertices.emplace_back();
+		v.position = { x, y };
+		v.color = Utility::colorFromHsl(360.f / edges * i, 1.f, 0.5f);
+		indices.push_back(i + 1);
+	}
+	indices.push_back(1);
+
 	log.info("initializing vulkan...");
+
 	createInstance();
 	setupDebugMessenger();
 	createSurface();
@@ -64,10 +86,20 @@ void Application::initVulkan()
 		(void *) vertices.data(), 
 		vertices.size()*sizeof(vertices[0]), 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		physicalDevice, device, 
+		physicalDevice, 
+		device, 
 		transferCommandPool, 
 		graphicsQueue
-		);
+	);
+	indexBuffer = std::make_unique<Buffer>(
+		(void *) indices.data(), 
+		indices.size()*sizeof(indices[0]), 
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		physicalDevice, 
+		device, 
+		transferCommandPool, 
+		graphicsQueue
+	);
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -548,8 +580,10 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	VkBuffer vertexBuffers[] = {vertexBuffer->getHandle()};
 	VkDeviceSize offsets[] = {0};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT16);
 
-	vkCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
+
 	vkCmdEndRenderPass(commandBuffer);
 
 	result = vkEndCommandBuffer(commandBuffer);
@@ -634,6 +668,7 @@ void Application::cleanup()
 	}
 
 	swapChain.reset();
+	indexBuffer.reset();
 	vertexBuffer.reset();
 	vkDestroyCommandPool(device, transferCommandPool, nullptr);
 	vkDestroyCommandPool(device, commandPool, nullptr);

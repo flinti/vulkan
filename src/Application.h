@@ -34,7 +34,7 @@ public:
     };
 
     const uint32_t WIDTH = 800;
-    const uint32_t HEIGHT = 600;
+    const uint32_t HEIGHT = 800;
 
 	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames);
 	~Application();
@@ -94,6 +94,7 @@ private:
     std::unique_ptr<RenderPass> renderPass;
     std::unique_ptr<GraphicsPipeline> graphicsPipeline;
     std::unique_ptr<Buffer> vertexBuffer;
+    std::unique_ptr<Buffer> indexBuffer;
     uint32_t currentFrame = 0;
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandPool transferCommandPool = VK_NULL_HANDLE;
@@ -104,11 +105,8 @@ private:
     bool needsSwapChainRecreation = false;
 
 
-	const std::vector<Vertex> vertices = {
-		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-	};
+	std::vector<Vertex> vertices;
+    std::vector<uint16_t> indices;
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
     std::vector<const char *> requiredValidationLayers = {
