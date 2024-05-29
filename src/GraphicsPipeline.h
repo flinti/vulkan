@@ -13,6 +13,7 @@ public:
     ~GraphicsPipeline();
 
     void bind(VkCommandBuffer commandBuffer);
+    void pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size);
 private:
     void createGraphicsPipeline();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);

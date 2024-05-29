@@ -6,10 +6,10 @@
 #include "RenderPass.h"
 #include "SwapChain.h"
 #include "Buffer.h"
+#include "Mesh.h"
 
 #include <cstddef>
 #include <memory>
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <cstdint>
 #include <filesystem>
@@ -39,6 +39,7 @@ public:
 	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames);
 	~Application();
 	void run();
+    void setTargetFps(float targetFps);
 private:
     void initWindow();
     void initVulkan();
@@ -67,6 +68,7 @@ private:
     void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void mainLoop();
+    void updateInfoDisplay();
     void draw();
     void cleanup();
 
@@ -83,6 +85,11 @@ private:
     uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
     bool paused = false;
+    decltype(std::chrono::high_resolution_clock::now()) startedAtTimePoint;
+    float targetFps = 60.f;
+    float frameRate = 0.f;
+    float secondsRunning = 0.f;
+    uint64_t frameCounter = 0;
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
@@ -95,7 +102,7 @@ private:
     std::unique_ptr<GraphicsPipeline> graphicsPipeline;
     std::unique_ptr<Buffer> vertexBuffer;
     std::unique_ptr<Buffer> indexBuffer;
-    uint32_t currentFrame = 0;
+    uint32_t currentFrameIndex = 0;
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandPool transferCommandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers;
@@ -103,10 +110,8 @@ private:
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> frameFences;
     bool needsSwapChainRecreation = false;
+    Mesh testingMesh;
 
-
-	std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
     std::vector<VkExtensionProperties> extensions;
     bool isValidationLayersEnabled = false;
     std::vector<const char *> requiredValidationLayers = {

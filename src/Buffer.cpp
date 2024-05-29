@@ -120,7 +120,7 @@ void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
     vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
 }
 
-void Buffer::createAndFillBuffer(void *data, size_t size, VkBufferUsageFlags usage)
+void Buffer::createAndFillBuffer(const void *data, size_t size, VkBufferUsageFlags usage)
 {
 
     VkBuffer stagingBuffer;

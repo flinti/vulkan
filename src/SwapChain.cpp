@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <spdlog/fmt/fmt.h>
 #include <vulkan/vulkan_core.h>
@@ -197,9 +196,15 @@ void SwapChain::createSwapChain(
 	}
 
 	// get and store the handles to the swap chain images (there may be more than requested)
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+	result = vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error(fmt::format("vkGetSwapchainImagesKHR failed with code {}", (int32_t) result));
+	}
 	swapChainImages.assign(imageCount, VK_NULL_HANDLE);
-	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+	result = vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+	if (result != VK_SUCCESS) {
+		throw std::runtime_error(fmt::format("vkGetSwapchainImagesKHR failed with code {}", (int32_t) result));
+	}
 	swapChainExtent = extent;
 }
 

@@ -1,14 +1,19 @@
 #include "Application.h"
 #include "GraphicsPipeline.h"
 #include "RenderPass.h"
-#include "Utility.h"
 
 #include <GLFW/glfw3.h>
+#include <chrono>
 #include <fmt/core.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/fwd.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/trigonometric.hpp>
+#include <thread>
+#include <glm/gtc/matrix_transform.hpp>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -20,7 +25,8 @@
 Application::Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames)
 	: log(log),
 	isValidationLayersEnabled(enableValidationLayers),
-	concurrentFrames(concurrentFrames)
+	concurrentFrames(concurrentFrames),
+	testingMesh(Mesh::createRegularPolygon(1.f, 6))
 {
 	initWindow();
 	initVulkan();
@@ -35,7 +41,14 @@ Application::~Application()
 
 void Application::run()
 {
+	startedAtTimePoint = std::chrono::high_resolution_clock::now();
 	mainLoop();
+}
+
+
+void Application::setTargetFps(float targetFps)
+{
+	this->targetFps = targetFps;
 }
 
 void Application::initWindow()
@@ -46,32 +59,13 @@ void Application::initWindow()
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+	window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
 	glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResized);
 }
 
 void Application::initVulkan()
 {
-	const float r = 1.f;
-	const uint32_t edges = 50;
-	vertices.reserve(edges + 1);
-	indices.reserve(edges + 2);
-	vertices = {
-        {{-0.f, -0.f}, {1.0f, 1.0f, 1.0f}}
-    };
-	indices = {  0  };
-	for (uint32_t i = 0; i < edges; ++i) {
-		float phi = 2 * 3.1415926f / edges * i;
-		float x = r * glm::cos(phi);
-		float y = r * glm::sin(phi);
-		Vertex &v = vertices.emplace_back();
-		v.position = { x, y };
-		v.color = Utility::colorFromHsl(360.f / edges * i, 1.f, 0.5f);
-		indices.push_back(i + 1);
-	}
-	indices.push_back(1);
-
 	log.info("initializing vulkan...");
 
 	createInstance();
@@ -83,8 +77,8 @@ void Application::initVulkan()
 	graphicsPipeline = std::make_unique<GraphicsPipeline>(device, *renderPass);
 	createCommandPools();
 	vertexBuffer = std::make_unique<Buffer>(
-		(void *) vertices.data(), 
-		vertices.size()*sizeof(vertices[0]), 
+		(void *) testingMesh.getVertexData().data(), 
+		testingMesh.getVertexDataSize(), 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		physicalDevice, 
 		device, 
@@ -92,8 +86,8 @@ void Application::initVulkan()
 		graphicsQueue
 	);
 	indexBuffer = std::make_unique<Buffer>(
-		(void *) indices.data(), 
-		indices.size()*sizeof(indices[0]), 
+		(void *) testingMesh.getIndexData().data(), 
+		testingMesh.getIndexDataSize(), 
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		physicalDevice, 
 		device, 
@@ -458,7 +452,7 @@ void Application::recreateSwapChain()
 {
     vkDeviceWaitIdle(device);
 
-	SwapChainSupportDetails swapChainSupportDetails = swapChain->getSwapChainSupportDetails();
+	SwapChainSupportDetails swapChainSupportDetails = SwapChain::querySwapChainSupportDetails(physicalDevice, surface);
 	VkSurfaceFormatKHR chosenSurfaceFormat = swapChain->getSurfaceFormat();
 	swapChain.reset();
     createSwapChain(swapChainSupportDetails, chosenSurfaceFormat);
@@ -547,6 +541,8 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	}
 
 	VkExtent2D swapChainExtent = swapChain->getExtent();
+	float vpWdt = static_cast<float>(swapChainExtent.width);
+	float vpHgt = static_cast<float>(swapChainExtent.height);
 
 	// begin render pass
 	VkClearValue clearColor = {{{0.f, 0.f, 0.f, 1.f}}};
@@ -562,11 +558,22 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	graphicsPipeline->bind(commandBuffer);
 
+	static auto startTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration<float, std::chrono::seconds::period>( currentTime - startTime).count();
+
+	glm::mat4 m = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 v = glm::lookAt(glm::vec3(0.0f, -4.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 p = glm::perspective(glm::radians(45.0f), vpWdt / vpHgt, 0.1f, 100.0f);
+	glm::mat4 mvp = p * v * m;
+	mvp[1][1] *= -1.f;
+	graphicsPipeline->pushConstants(commandBuffer, static_cast<void *>(&mvp), sizeof(mvp));
+
 	VkViewport viewport{};
 	viewport.x = 0.f;
 	viewport.y = 0.f;
-	viewport.width = static_cast<float>(swapChainExtent.width);
-	viewport.height = static_cast<float>(swapChainExtent.height);
+	viewport.width = vpWdt;
+	viewport.height = vpHgt;
 	viewport.minDepth = 0.f;
 	viewport.maxDepth = 1.f;
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
@@ -576,13 +583,12 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-
 	VkBuffer vertexBuffers[] = {vertexBuffer->getHandle()};
 	VkDeviceSize offsets[] = {0};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(commandBuffer, indexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT16);
 
-	vkCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, testingMesh.getIndexData().size(), 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -594,10 +600,10 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 
 void Application::draw()
 {
-	vkWaitForFences(device, 1, &frameFences[currentFrame], VK_TRUE, UINT64_MAX);
+	vkWaitForFences(device, 1, &frameFences[currentFrameIndex], VK_TRUE, UINT64_MAX);
 
 	uint32_t imageIndex;
-    VkResult result = swapChain->acquireNextImage(&imageIndex, imageAvailableSemaphores[currentFrame]);
+    VkResult result = swapChain->acquireNextImage(&imageIndex, imageAvailableSemaphores[currentFrameIndex]);
 	// framebufferJustResized is handled near the end of this function (deviating from the tutorial) 
 	// to avoid that the image available semaphore occasionally remains signalled
 	if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -608,31 +614,31 @@ void Application::draw()
 		log.error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
 	}
 
-	vkResetFences(device, 1, &frameFences[currentFrame]);
+	vkResetFences(device, 1, &frameFences[currentFrameIndex]);
 
-	result = vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+	result = vkResetCommandBuffer(commandBuffers[currentFrameIndex], 0);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkResetCommandBuffer failed with code {}", (int32_t) result));
 	}
-	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+	recordCommandBuffer(commandBuffers[currentFrameIndex], imageIndex);
 
 	VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &imageAvailableSemaphores[currentFrame];
+	submitInfo.pWaitSemaphores = &imageAvailableSemaphores[currentFrameIndex];
 	submitInfo.pWaitDstStageMask = waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+	submitInfo.pCommandBuffers = &commandBuffers[currentFrameIndex];
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &renderFinishedSemaphores[currentFrame];
+	submitInfo.pSignalSemaphores = &renderFinishedSemaphores[currentFrameIndex];
 
-	result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, frameFences[currentFrame]);
+	result = vkQueueSubmit(graphicsQueue, 1, &submitInfo, frameFences[currentFrameIndex]);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkQueueSubmit failed with code {}", (int32_t) result));
 	}
 
-	result = swapChain->queuePresent(presentQueue, imageIndex, renderFinishedSemaphores[currentFrame]);
+	result = swapChain->queuePresent(presentQueue, imageIndex, renderFinishedSemaphores[currentFrameIndex]);
 	if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR || needsSwapChainRecreation) {
 		needsSwapChainRecreation = false;
 		recreateSwapChain();
@@ -641,20 +647,50 @@ void Application::draw()
 		log.error("vkQueuePresentKHR failed with code {}", (int32_t) result);
 	}
 
-	currentFrame = (currentFrame + 1) % concurrentFrames;
+	currentFrameIndex = (currentFrameIndex + 1) % concurrentFrames;
 }
 
 void Application::mainLoop()
 {
 	log.info("starting main loop...");
+
+	auto prevFrameTime = std::chrono::high_resolution_clock::now();
+
 	while (!glfwWindowShouldClose(window)) {
+		auto beginFrameTime = std::chrono::high_resolution_clock::now();
 		glfwPollEvents();
+
+		++frameCounter;
+		secondsRunning = std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startedAtTimePoint).count();
 		if (!paused) {
 			draw();
 		}
+
+		auto endFrameTime = std::chrono::high_resolution_clock::now();
+		
+		// limit frame rate
+		float frameDuration = std::chrono::duration<float, std::chrono::seconds::period>(endFrameTime - beginFrameTime).count();
+		float targetFrameDuration = 1.f / targetFps;
+		float sleepSec = targetFrameDuration - frameDuration;
+		if (sleepSec > 0.f) {
+			std::this_thread::sleep_for(std::chrono::duration<float, std::chrono::seconds::period>(sleepSec));
+		}
+
+		// measure frame rate
+		frameDuration = std::chrono::duration<float, std::chrono::seconds::period>(endFrameTime - prevFrameTime).count();
+		prevFrameTime = endFrameTime;
+		frameRate = 1.f / frameDuration;
+		updateInfoDisplay();
 	}
 
 	vkDeviceWaitIdle(device);
+}
+
+void Application::updateInfoDisplay()
+{
+	std::stringstream s;
+	s << "Demo " << std::setprecision(3) << frameRate << " fps";
+	glfwSetWindowTitle(window, s.str().c_str());
 }
 
 void Application::cleanup()
