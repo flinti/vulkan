@@ -6,6 +6,7 @@
 #include <vulkan/vulkan_core.h>
 
 class RenderPass;
+class Device;
 
 struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -19,13 +20,11 @@ public:
     SwapChain(
         SwapChainSupportDetails swapChainSupportDetails,
         VkSurfaceFormatKHR chosenSurfaceFormat,
-        VkDevice device,
+        Device &device,
         VkSurfaceKHR surface,
         const RenderPass &renderPass,
         uint32_t framebufferWdt, 
-        uint32_t framebufferHgt, 
-        uint32_t graphicsQueueIdx, 
-        uint32_t presentQueueIdx
+        uint32_t framebufferHgt
     );
     ~SwapChain();
 

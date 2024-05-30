@@ -20,7 +20,7 @@ int main()
 #endif
 
     try {
-        Application app(log, true, 2);
+        Application app(log, true, 3);
         app.run();
     } catch (const std::exception& e) {
         log.critical(e.what());
