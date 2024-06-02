@@ -90,7 +90,7 @@ void GraphicsPipeline::createGraphicsPipeline()
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	VkPipelineViewportStateCreateInfo viewportState{};
@@ -144,7 +144,7 @@ void GraphicsPipeline::createGraphicsPipeline()
 	// pipeline layout
 	VkPushConstantRange pushConstantRange{};
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(glm::mat4);
+	pushConstantRange.size = sizeof(PushConstants);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};

@@ -1,154 +1,43 @@
 #include "Buffer.h"
+#include "DeviceAllocator.h"
 
-#include <cstdint>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan_core.h>
-#include <stdexcept>
+#include <vulkan/vk_enum_string_helper.h>
 
-Buffer::Buffer(void *data, size_t size, VkBufferUsageFlags usage, VkPhysicalDevice physicalDevice, VkDevice device, VkCommandPool transferPool, VkQueue transferQueue)
-    : physicalDevice(physicalDevice), 
-    device(device), 
-    transferPool(transferPool), 
-    transferQueue(transferQueue)
+Buffer::Buffer(DeviceAllocator &allocator, void *data, size_t size, VkBufferUsageFlags usage)
+    : size(size),
+    allocator(allocator),
+    bufferAllocation(VK_NULL_HANDLE, VK_NULL_HANDLE)
 {
-    createAndFillBuffer(data, size, usage);
+    bufferAllocation = allocator.allocateDeviceLocalBufferAndTransfer(data, size, usage);
+}
+
+Buffer::Buffer(Buffer &&b) noexcept
+    : size(b.size),
+    allocator(b.allocator),
+    bufferAllocation(b.bufferAllocation)
+{
+    b.bufferAllocation.first = VK_NULL_HANDLE;
 }
 
 Buffer::~Buffer()
 {
-    vkDestroyBuffer(device, buffer, nullptr);
-    vkFreeMemory(device, bufferMemory, nullptr);
+    if (bufferAllocation.first != VK_NULL_HANDLE) {
+        allocator.free(bufferAllocation);
+    }
 }
 
 VkBuffer Buffer::getHandle() const
 {
-    return buffer;
+    return bufferAllocation.first;
 }
 
-uint32_t Buffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+size_t Buffer::getSize() const
 {
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-            return i;
-        }
-    }
-
-    throw std::runtime_error("Buffer::findMemoryType: failed to find suitable memory type!");
+    return size;
 }
 
-void Buffer::createBuffer(VkBuffer &buffer, VkDeviceMemory &bufferMemory, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
-{
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VkResult result = vkCreateBuffer(device, &bufferInfo, nullptr, &buffer);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkCreateBuffer failed with code {}", (int32_t) result));
-    }
-
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    result = vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkAllocateMemory failed with code {}", (int32_t) result));
-    }
-
-    vkBindBufferMemory(device, buffer, bufferMemory, 0);
-}
-
-void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = transferPool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-    VkResult result = vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkAllocateCommandBuffers failed with code {}", (int32_t) result));
-    }
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkBeginCommandBuffer failed with code {}", (int32_t) result));
-    }
-
-    VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0;
-    copyRegion.dstOffset = 0;
-    copyRegion.size = size;
-    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-    result = vkEndCommandBuffer(commandBuffer);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkEndCommandBuffer failed with code {}", (int32_t) result));
-    }
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    result = vkQueueSubmit(transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkQueueSubmit failed with code {}", (int32_t) result));
-    }
-    result = vkQueueWaitIdle(transferQueue);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(fmt::format("vkQueueWaitIdle failed with code {}", (int32_t) result));
-    }
-
-    vkFreeCommandBuffers(device, transferPool, 1, &commandBuffer);
-}
-
-void Buffer::createAndFillBuffer(const void *data, size_t size, VkBufferUsageFlags usage)
-{
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(
-        stagingBuffer, 
-        stagingBufferMemory, 
-        size, 
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    );
-
-    void* bufData;
-    vkMapMemory(device, stagingBufferMemory, 0, size, 0, &bufData);
-    std::memcpy(bufData, data, size);
-    vkUnmapMemory(device, stagingBufferMemory);
-
-    createBuffer(
-        buffer, 
-        bufferMemory, 
-        size, 
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage, 
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    );
-
-    copyBuffer(stagingBuffer, buffer, size);
-
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
-}
 

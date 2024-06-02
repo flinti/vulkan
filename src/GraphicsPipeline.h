@@ -3,8 +3,15 @@
 
 #include <vulkan/vulkan_core.h>
 #include <vector>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 
 class RenderPass;
+
+struct PushConstants {
+    glm::mat4 transform;
+    glm::vec4 time;
+};
 
 class GraphicsPipeline
 {

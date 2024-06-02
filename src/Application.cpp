@@ -1,5 +1,8 @@
 #include "Application.h"
+#include "DeviceAllocator.h"
 #include "GraphicsPipeline.h"
+#include "Mesh.h"
+#include "RenderObject.h"
 #include "RenderPass.h"
 #include "VkHelpers.h"
 
@@ -10,6 +13,10 @@
 #include <cstdint>
 #include <cstring>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/ext/vector_float4.hpp>
 #include <glm/fwd.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/trigonometric.hpp>
@@ -22,10 +29,10 @@
 #include <sstream>
 
 
-Application::Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames)
+Application::Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame)
 	: log(log),
 	concurrentFrames(concurrentFrames),
-	testingMesh(Mesh::createRegularPolygon(1.f, 6))
+	exited(singleFrame)
 {
 	initWindow();
 	initVulkan(enableValidationLayers);
@@ -87,34 +94,33 @@ void Application::initVulkan(bool validationLayers)
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		}
 	);
-	createRenderPassAndSwapChain();
-	graphicsPipeline = std::make_unique<GraphicsPipeline>(device->getDeviceHandle(), *renderPass);
+
+	log.info("creating command pools...");
 	createCommandPools();
-	vertexBuffer = std::make_unique<Buffer>(
-		(void *) testingMesh.getVertexData().data(), 
-		testingMesh.getVertexDataSize(), 
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		device->getPhysicalDeviceHandle(), 
-		device->getDeviceHandle(), 
-		transferCommandPool, 
+
+	log.info("creating allocator...");
+	deviceAllocator = std::make_unique<DeviceAllocator>(
+		instance->getHandle(),
+		device->getPhysicalDeviceHandle(),
+		device->getDeviceHandle(),
+		transferCommandPool,
 		device->getGraphicsQueue()
 	);
-	indexBuffer = std::make_unique<Buffer>(
-		(void *) testingMesh.getIndexData().data(), 
-		testingMesh.getIndexDataSize(), 
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		device->getPhysicalDeviceHandle(), 
-		device->getDeviceHandle(), 
-		transferCommandPool, 
-		device->getGraphicsQueue()
-	);
+
+	createRenderPassAndSwapChain();
+
+	log.info("creating pipeline...");
+	graphicsPipeline = std::make_unique<GraphicsPipeline>(device->getDeviceHandle(), *renderPass);
+
+	log.info("creating initial objects");
+	createInitialObjects();
 	
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
-		frames.emplace_back(std::make_unique<Frame>(
+		frames.emplace_back(
 			device->getDeviceHandle(), 
 			device->getQueueFamilyIndices().graphics.value()
-		));
+		);
 	}
 }
 
@@ -198,6 +204,25 @@ void Application::createCommandPools()
 	));
 }
 
+void Application::createInitialObjects()
+{
+	meshes.emplace_back(Mesh::createPlane(
+		{ 0.5f, 0.f, 0.f }, 
+		{ 0.f, 0.f, 0.5f },
+		{ 0.f, 0.f, 0.f }
+	));
+	meshes.emplace_back(Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f }));
+	meshes.emplace_back(Mesh::createUnitCube());
+
+	renderObjects.emplace_back(*deviceAllocator, meshes[1]);
+	RenderObject &m = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
+	m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, 0.f)));
+	RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
+	m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f)));
+	RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
+	m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f)));
+}
+
 void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
 	if (imageIndex >= swapChain->getImageCount()) {
@@ -209,10 +234,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	beginInfo.flags = 0;
 	beginInfo.pInheritanceInfo = nullptr;
 
-	VkResult result = vkBeginCommandBuffer(commandBuffer, &beginInfo);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkBeginCommandBuffer failed with code {}", (int32_t) result));
-	}
+	VK_ASSERT(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
 	VkExtent2D swapChainExtent = swapChain->getExtent();
 	float vpWdt = static_cast<float>(swapChainExtent.width);
@@ -232,17 +254,6 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	graphicsPipeline->bind(commandBuffer);
 
-	static auto startTime = std::chrono::high_resolution_clock::now();
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float time = std::chrono::duration<float, std::chrono::seconds::period>( currentTime - startTime).count();
-
-	glm::mat4 m = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 v = glm::lookAt(glm::vec3(0.0f, -4.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	glm::mat4 p = glm::perspective(glm::radians(45.0f), vpWdt / vpHgt, 0.1f, 100.0f);
-	glm::mat4 mvp = p * v * m;
-	mvp[1][1] *= -1.f;
-	graphicsPipeline->pushConstants(commandBuffer, static_cast<void *>(&mvp), sizeof(mvp));
-
 	VkViewport viewport{};
 	viewport.x = 0.f;
 	viewport.y = 0.f;
@@ -257,34 +268,48 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	VkBuffer vertexBuffers[] = {vertexBuffer->getHandle()};
-	VkDeviceSize offsets[] = {0};
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-	vkCmdBindIndexBuffer(commandBuffer, indexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT16);
-
-	vkCmdDrawIndexed(
-		commandBuffer, 
-		testingMesh.getIndexData().size(), 
-		1, 
-		0, 
-		0, 
-		0
+	float angle = 0.33f * secondsRunning * glm::radians(90.0f);
+	glm::mat4 m = glm::rotate(
+		glm::mat4(1.0f), 
+		angle, 
+		glm::vec3(0.0f, 0.5f, 0.5f)
 	);
+	glm::mat4 v = glm::lookAt(
+		glm::vec3(0.0f, 10.0f, 0.0f), 
+		glm::vec3(0.0f, 0.0f, 0.0f), 
+		glm::vec3(0.0f, 0.0f, 1.0f)
+	);
+	glm::mat4 p = glm::perspective(
+		glm::radians(45.0f), 
+		vpWdt / vpHgt, 
+		0.1f, 
+		100.0f
+	);
+	p[1][1] *= -1.f;
+	pushConstants.time = glm::vec4(secondsRunning);
+
+	for (const auto &r : renderObjects) {
+		pushConstants.transform = p * v * m * r.getTransform();
+		//pushConstants.transform[1][1] *= -1.f;
+		graphicsPipeline->pushConstants(
+			commandBuffer, 
+			static_cast<void *>(&pushConstants), 
+			sizeof(pushConstants)
+		);
+		r.enqueueDrawCommands(commandBuffer);
+	}
 
 	vkCmdEndRenderPass(commandBuffer);
 
-	result = vkEndCommandBuffer(commandBuffer);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkEndCommandBuffer failed with code {}", (int32_t) result));
-	}
+	VK_ASSERT(vkEndCommandBuffer(commandBuffer));
 }
 
 void Application::draw()
 {
-	VkFence fence = frames[currentFrameIndex]->getFence();
-	VkSemaphore imageAvailableSemaphore = frames[currentFrameIndex]->getImageAvailableSemaphore();
-	VkSemaphore renderFinishedSemaphore = frames[currentFrameIndex]->getRenderFinishedSemaphore();
-	VkCommandBuffer commandBuffer = frames[currentFrameIndex]->getCommandBuffer();
+	VkFence fence = frames[currentFrameIndex].getFence();
+	VkSemaphore imageAvailableSemaphore = frames[currentFrameIndex].getImageAvailableSemaphore();
+	VkSemaphore renderFinishedSemaphore = frames[currentFrameIndex].getRenderFinishedSemaphore();
+	VkCommandBuffer commandBuffer = frames[currentFrameIndex].getCommandBuffer();
 	VkQueue graphicsQueue = device->getGraphicsQueue();
     VkQueue presentQueue = device->getPresentQueue();
 
@@ -389,6 +414,10 @@ void Application::mainLoop()
 		prevFrameTime = endFrameTime;
 		frameRate = 1.f / frameDuration;
 		updateInfoDisplay();
+
+		if (exited) {
+			break;
+		}
 	}
 
 	device->waitDeviceIdle();
@@ -406,16 +435,12 @@ void Application::cleanup()
 	log.info("cleaning up...");
 
 	swapChain.reset();
-	indexBuffer.reset();
-	vertexBuffer.reset();
-	vkDestroyCommandPool(device->getDeviceHandle(), transferCommandPool, nullptr);
-
-	for (auto &&frame : frames) {
-		frame.reset();
-	}
-
+	renderObjects.clear();
+	frames.clear();
 	graphicsPipeline.reset();
 	renderPass.reset();
+	deviceAllocator.reset();
+	vkDestroyCommandPool(device->getDeviceHandle(), transferCommandPool, nullptr);
 	device.reset();
 	vkDestroySurfaceKHR(instance->getHandle(), surface, nullptr);
 	instance.reset();

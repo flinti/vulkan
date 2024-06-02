@@ -2,6 +2,7 @@
 #define _APPLICATION_H_
 
 #include "GraphicsPipeline.h"
+#include "RenderObject.h"
 #include "Vertex.h"
 #include "RenderPass.h"
 #include "SwapChain.h"
@@ -10,8 +11,12 @@
 #include "Frame.h"
 #include "Instance.h"
 #include "Device.h"
+#include "DeviceAllocator.h"
+#include "RenderObject.h"
 
 #include <cstddef>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/vector_float4.hpp>
 #include <memory>
 #include <GLFW/glfw3.h>
 #include <cstdint>
@@ -28,7 +33,7 @@ public:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 800;
 
-	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames);
+	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame);
 	~Application();
 	void run();
     void setTargetFps(float targetFps);
@@ -44,6 +49,7 @@ private:
     );
     void recreateSwapChain();
     void createCommandPools();
+    void createInitialObjects();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     void mainLoop();
     void updateInfoDisplay();
@@ -63,6 +69,7 @@ private:
     uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
     bool paused = false;
+    bool exited = false;
     decltype(std::chrono::high_resolution_clock::now()) startedAtTimePoint;
     float targetFps = 60.f;
     float frameRate = 0.f;
@@ -71,16 +78,17 @@ private:
     std::unique_ptr<Instance> instance;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     std::unique_ptr<Device> device;
+    std::unique_ptr<DeviceAllocator> deviceAllocator;
     std::unique_ptr<SwapChain> swapChain;
     std::unique_ptr<RenderPass> renderPass;
     std::unique_ptr<GraphicsPipeline> graphicsPipeline;
-    std::unique_ptr<Buffer> vertexBuffer;
-    std::unique_ptr<Buffer> indexBuffer;
     uint32_t currentFrameIndex = 0;
-    std::vector<std::unique_ptr<Frame>> frames;
+    std::vector<Frame> frames;
     VkCommandPool transferCommandPool = VK_NULL_HANDLE;
     bool needsSwapChainRecreation = false;
-    Mesh testingMesh;
+    PushConstants pushConstants;
+    std::vector<Mesh> meshes;
+    std::vector<RenderObject> renderObjects;
 };
 
 
