@@ -200,7 +200,6 @@ void Application::createSwapChainAndFramebuffers(const SwapChainSupportDetails &
 		chosenSurfaceFormat,
 		*device,
 		surface,
-		*renderPass,
 		static_cast<uint32_t>(wdt), 
 		static_cast<uint32_t>(hgt)
 	);

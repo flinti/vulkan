@@ -22,7 +22,6 @@ public:
         VkSurfaceFormatKHR chosenSurfaceFormat,
         Device &device,
         VkSurfaceKHR surface,
-        const RenderPass &renderPass,
         uint32_t framebufferWdt, 
         uint32_t framebufferHgt
     );
@@ -62,7 +61,6 @@ private:
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSurfaceFormatKHR surfaceFormat{};
     SwapChainSupportDetails swapChainSupportDetails{};
-    const RenderPass &renderPass;
 };
 
 #endif

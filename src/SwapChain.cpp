@@ -1,5 +1,4 @@
 #include "SwapChain.h"
-#include "RenderPass.h"
 #include "Device.h"
 
 #include <algorithm>
@@ -13,15 +12,13 @@ SwapChain::SwapChain(
 	VkSurfaceFormatKHR chosenSurfaceFormat,
 	Device &device,
 	VkSurfaceKHR surface,
-	const RenderPass &renderPass,
 	uint32_t framebufferWdt, 
 	uint32_t framebufferHgt
 ) 
 : swapChainSupportDetails(swapChainSupportDetails), 
 	surfaceFormat(chosenSurfaceFormat), 
 	device(device.getDeviceHandle()), 
-	surface(surface), 
-	renderPass(renderPass)
+	surface(surface)
 {
     createSwapChain(
 		device.getQueueFamilyIndices().graphics.value(), 
