@@ -35,8 +35,8 @@ public:
     const SwapChainSupportDetails &getSwapChainSupportDetails() const;
     const VkSurfaceFormatKHR &getSurfaceFormat() const;
     size_t getImageCount() const;
-    VkFramebuffer getFramebuffer(size_t index) const;
     VkExtent2D getExtent() const;
+    const std::vector<VkImageView> &getImageViews() const;
 
     static SwapChainSupportDetails querySwapChainSupportDetails(VkPhysicalDevice device, VkSurfaceKHR surface);
 private:
@@ -56,7 +56,6 @@ private:
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
     VkExtent2D swapChainExtent{};
     
     VkDevice device = VK_NULL_HANDLE;

@@ -7,6 +7,7 @@
 #include "VkHelpers.h"
 
 #include <GLFW/glfw3.h>
+#include <array>
 #include <chrono>
 #include <fmt/core.h>
 #include <cstddef>
@@ -156,10 +157,39 @@ void Application::createRenderPassAndSwapChain()
 		device->getDeviceHandle(), 
 		chosenSurfaceFormat.format
 	);
-	createSwapChain(swapChainSupportDetails, chosenSurfaceFormat);
+	createSwapChainAndFramebuffers(swapChainSupportDetails, chosenSurfaceFormat);
 }
 
-void Application::createSwapChain(const SwapChainSupportDetails &swapChainSupportDetails, const VkSurfaceFormatKHR &chosenSurfaceFormat)
+void Application::createFramebuffers(uint32_t width, uint32_t height)
+{
+	auto swapChainImageViews = swapChain->getImageViews();
+	swapChainFramebuffers.assign(swapChainImageViews.size(), VK_NULL_HANDLE);
+
+	for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
+		std::array<VkImageView, 2> attachments = {
+			swapChainImageViews[i],
+			depthImage->getImageViewHandle(),
+		};
+
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass->getHandle();
+		framebufferInfo.attachmentCount = attachments.size();
+		framebufferInfo.pAttachments = attachments.data();
+		framebufferInfo.width = width;
+		framebufferInfo.height = height;
+		framebufferInfo.layers = 1;
+
+		VK_ASSERT(vkCreateFramebuffer(
+			device->getDeviceHandle(), 
+			&framebufferInfo,
+			 nullptr, 
+			 &swapChainFramebuffers[i]
+		));
+	}
+}
+
+void Application::createSwapChainAndFramebuffers(const SwapChainSupportDetails &swapChainSupportDetails, const VkSurfaceFormatKHR &chosenSurfaceFormat)
 {
 	int wdt = 0;
 	int hgt = 0;
@@ -174,6 +204,13 @@ void Application::createSwapChain(const SwapChainSupportDetails &swapChainSuppor
 		static_cast<uint32_t>(wdt), 
 		static_cast<uint32_t>(hgt)
 	);
+	depthImage = std::make_unique<DepthImage>(
+		*deviceAllocator, 
+		device->getDeviceHandle(), 
+		static_cast<uint32_t>(wdt), 
+		static_cast<uint32_t>(hgt)
+	);
+	createFramebuffers(static_cast<uint32_t>(wdt), static_cast<uint32_t>(hgt));
 }
 
 void Application::recreateSwapChain() 
@@ -185,8 +222,10 @@ void Application::recreateSwapChain()
 		surface
 	);
 	VkSurfaceFormatKHR chosenSurfaceFormat = swapChain->getSurfaceFormat();
-	swapChain.reset();
-    createSwapChain(swapChainSupportDetails, chosenSurfaceFormat);
+
+	cleanupSwapChainAndFramebuffers();
+
+    createSwapChainAndFramebuffers(swapChainSupportDetails, chosenSurfaceFormat);
 }
 
 void Application::createCommandPools()
@@ -241,15 +280,17 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	float vpHgt = static_cast<float>(swapChainExtent.height);
 
 	// begin render pass
-	VkClearValue clearColor = {{{0.f, 0.f, 0.f, 1.f}}};
+	std::array<VkClearValue, 2> clearValues{};
+	clearValues[0].color = {0.f, 0.f, 0.f, 1.f};
+	clearValues[1].depthStencil = { 1.f, 0 };
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = renderPass->getHandle();
-	renderPassInfo.framebuffer = swapChain->getFramebuffer(imageIndex);
+	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
 	renderPassInfo.renderArea.offset = {0, 0};
 	renderPassInfo.renderArea.extent = swapChainExtent;
-	renderPassInfo.clearValueCount = 1;
-	renderPassInfo.pClearValues = &clearColor;
+	renderPassInfo.clearValueCount = clearValues.size();
+	renderPassInfo.pClearValues = clearValues.data();
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 	graphicsPipeline->bind(commandBuffer);
@@ -430,14 +471,23 @@ void Application::updateInfoDisplay()
 	glfwSetWindowTitle(window, s.str().c_str());
 }
 
+void Application::cleanupSwapChainAndFramebuffers()
+{
+	for (auto &framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device->getDeviceHandle(), framebuffer, nullptr);
+    }
+	swapChain.reset();
+}
+
 void Application::cleanup()
 {
 	log.info("cleaning up...");
 
-	swapChain.reset();
 	renderObjects.clear();
 	frames.clear();
 	graphicsPipeline.reset();
+	depthImage.reset();
+    cleanupSwapChainAndFramebuffers();
 	renderPass.reset();
 	deviceAllocator.reset();
 	vkDestroyCommandPool(device->getDeviceHandle(), transferCommandPool, nullptr);

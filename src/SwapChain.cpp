@@ -30,14 +30,10 @@ SwapChain::SwapChain(
 		framebufferHgt
 	);
 	createImageViews();
-	createFramebuffers();
 }
 
 SwapChain::~SwapChain()
 {
-    for (auto &framebuffer : swapChainFramebuffers) {
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
-    }
 	for (auto &imageView : swapChainImageViews) {
 		vkDestroyImageView(device, imageView, nullptr);
 	}
@@ -89,18 +85,14 @@ size_t SwapChain::getImageCount() const
     return swapChainImages.size();
 }
 
-VkFramebuffer SwapChain::getFramebuffer(size_t index) const
-{
-    VkFramebuffer buf = VK_NULL_HANDLE;
-    if(index < swapChainFramebuffers.size()) {
-        buf = swapChainFramebuffers[index];
-    }
-    return buf;
-}
-
 VkExtent2D SwapChain::getExtent() const
 {
     return swapChainExtent;
+}
+
+const std::vector<VkImageView> &SwapChain::getImageViews() const
+{
+	return swapChainImageViews;
 }
 
 SwapChainSupportDetails SwapChain::querySwapChainSupportDetails(VkPhysicalDevice device, VkSurfaceKHR surface)
@@ -235,27 +227,6 @@ void SwapChain::createImageViews()
 		VkResult result = vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]);
 		if (result != VK_SUCCESS) {
 			throw std::runtime_error(fmt::format("vkCreateImageView failed with code {}", (int32_t) result));
-		}
-	}
-}
-
-void SwapChain::createFramebuffers()
-{
-	swapChainFramebuffers.assign(swapChainImageViews.size(), VK_NULL_HANDLE);
-
-	for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
-		VkFramebufferCreateInfo framebufferInfo{};
-		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = renderPass.getHandle();
-		framebufferInfo.attachmentCount = 1;
-		framebufferInfo.pAttachments = &swapChainImageViews[i];
-		framebufferInfo.width = swapChainExtent.width;
-		framebufferInfo.height = swapChainExtent.height;
-		framebufferInfo.layers = 1;
-
-		VkResult result = vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]);
-		if (result != VK_SUCCESS) {
-			throw std::runtime_error(fmt::format("vkCreateFramebuffer failed with code {}", (int32_t) result));
 		}
 	}
 }

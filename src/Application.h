@@ -13,6 +13,7 @@
 #include "Device.h"
 #include "DeviceAllocator.h"
 #include "RenderObject.h"
+#include "DepthImage.h"
 
 #include <cstddef>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -43,7 +44,8 @@ private:
     void createLogicalDevice();
     VkSurfaceFormatKHR chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats);
     void createRenderPassAndSwapChain();
-    void createSwapChain(
+    void createFramebuffers(uint32_t width, uint32_t height);
+    void createSwapChainAndFramebuffers(
         const SwapChainSupportDetails &swapChainSupportDetails, 
         const VkSurfaceFormatKHR &chosenSurfaceFormat
     );
@@ -54,6 +56,7 @@ private:
     void mainLoop();
     void updateInfoDisplay();
     void draw();
+    void cleanupSwapChainAndFramebuffers();
     void cleanup();
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -80,7 +83,9 @@ private:
     std::unique_ptr<Device> device;
     std::unique_ptr<DeviceAllocator> deviceAllocator;
     std::unique_ptr<SwapChain> swapChain;
+    std::unique_ptr<DepthImage> depthImage;
     std::unique_ptr<RenderPass> renderPass;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
     std::unique_ptr<GraphicsPipeline> graphicsPipeline;
     uint32_t currentFrameIndex = 0;
     std::vector<Frame> frames;

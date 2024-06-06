@@ -25,7 +25,14 @@ public:
         size_t size, 
         VkBufferUsageFlags usage
     );
+    std::pair<VkImage, VmaAllocation> allocateImageAttachment(
+        uint32_t width,
+        uint32_t height,
+        VkFormat format,
+        VkImageUsageFlags usage
+    );
     void free(std::pair<VkBuffer, VmaAllocation> allocation);
+    void free(std::pair<VkImage, VmaAllocation> allocation);
 private:
     std::pair<VkBuffer, VmaAllocation> allocateBuffer(
         size_t size, 
