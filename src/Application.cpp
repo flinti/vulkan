@@ -30,9 +30,8 @@
 #include <sstream>
 
 
-Application::Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame)
-	: log(log),
-	concurrentFrames(concurrentFrames),
+Application::Application(bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame)
+	: concurrentFrames(concurrentFrames),
 	exited(singleFrame)
 {
 	initWindow();
@@ -41,7 +40,7 @@ Application::Application(spdlog::logger &log, bool enableValidationLayers, uint3
 
 Application::~Application()
 {
-	log.info("running application destructor...");
+	spdlog::info("running application destructor...");
 	cleanup();
 }
 
@@ -60,7 +59,7 @@ void Application::setTargetFps(float targetFps)
 
 void Application::initWindow()
 {
-	log.info("initializing window...");
+	spdlog::info("initializing window...");
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -73,7 +72,7 @@ void Application::initWindow()
 
 void Application::initVulkan(bool validationLayers)
 {
-	log.info("initializing vulkan...");
+	spdlog::info("initializing vulkan...");
 
 	// request the required extensions
 	uint32_t glfwRequiredExtensionsCount = 0;
@@ -83,12 +82,11 @@ void Application::initVulkan(bool validationLayers)
 	}
 	std::vector<const char *> instanceExtensions(glfwExtensions, glfwExtensions + glfwRequiredExtensionsCount);
 
-	instance = std::make_unique<Instance>(log, instanceExtensions, validationLayers);
+	instance = std::make_unique<Instance>(instanceExtensions, validationLayers);
 	
 	VK_ASSERT(glfwCreateWindowSurface(instance->getHandle(), window, nullptr, &surface));
 	
 	device = std::make_unique<Device>(
-		log, 
 		*instance, 
 		surface,
 		std::vector<const char *>{ 
@@ -96,10 +94,10 @@ void Application::initVulkan(bool validationLayers)
 		}
 	);
 
-	log.info("creating command pools...");
+	spdlog::info("creating command pools...");
 	createCommandPools();
 
-	log.info("creating allocator...");
+	spdlog::info("creating allocator...");
 	deviceAllocator = std::make_unique<DeviceAllocator>(
 		instance->getHandle(),
 		device->getPhysicalDeviceHandle(),
@@ -110,10 +108,10 @@ void Application::initVulkan(bool validationLayers)
 
 	createRenderPassAndSwapChain();
 
-	log.info("creating pipeline...");
+	spdlog::info("creating pipeline...");
 	graphicsPipeline = std::make_unique<GraphicsPipeline>(device->getDeviceHandle(), *renderPass);
 
-	log.info("creating initial objects");
+	spdlog::info("creating initial objects");
 	createInitialObjects();
 	
 	frames.reserve(concurrentFrames);
@@ -144,7 +142,7 @@ VkSurfaceFormatKHR Application::chooseSwapChainSurfaceFormat(const std::vector<V
 
 void Application::createRenderPassAndSwapChain()
 {
-	log.info("creating swap chain...");
+	spdlog::info("creating swap chain...");
 
 	auto swapChainSupportDetails = SwapChain::querySwapChainSupportDetails(
 		device->getPhysicalDeviceHandle(), surface
@@ -373,7 +371,7 @@ void Application::draw()
 		return;
 	}
 	else if (result != VK_SUCCESS) {
-		log.error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
+		spdlog::error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
 	}
 
 	vkResetFences(device->getDeviceHandle(), 1, &fence);
@@ -406,7 +404,7 @@ void Application::draw()
 		recreateSwapChain();
 	}
 	else if (result != VK_SUCCESS) {
-		log.error("vkQueuePresentKHR failed with code {}", (int32_t) result);
+		spdlog::error("vkQueuePresentKHR failed with code {}", (int32_t) result);
 	}
 
 	currentFrameIndex = (currentFrameIndex + 1) % concurrentFrames;
@@ -414,7 +412,7 @@ void Application::draw()
 
 void Application::mainLoop()
 {
-	log.info("starting main loop...");
+	spdlog::info("starting main loop...");
 
 	auto prevFrameTime = std::chrono::high_resolution_clock::now();
 
@@ -480,7 +478,7 @@ void Application::cleanupSwapChainAndFramebuffers()
 
 void Application::cleanup()
 {
-	log.info("cleaning up...");
+	spdlog::info("cleaning up...");
 
 	renderObjects.clear();
 	frames.clear();

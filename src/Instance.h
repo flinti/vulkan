@@ -9,7 +9,6 @@ class Instance
 {
 public:
     Instance(
-        spdlog::logger &log, 
         std::vector<const char *> extensionsToEnable = { VK_KHR_SURFACE_EXTENSION_NAME },
         bool enableValidationLayers = false
     );
@@ -36,7 +35,6 @@ private:
     VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
     std::vector<const char *> extensionsToEnable;
-    spdlog::logger &log;
 
     std::vector<VkExtensionProperties> extensions;
     std::vector<const char *> requiredValidationLayers = {

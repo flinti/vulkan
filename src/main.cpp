@@ -1,4 +1,3 @@
-#include <memory>
 #include <string>
 #include <set>
 #include <spdlog/common.h>
@@ -9,11 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    stdout_sink->set_level(spdlog::level::trace);
-
-    spdlog::logger log("main", {stdout_sink});
-    log.set_level(spdlog::level::info);
+    spdlog::set_level(spdlog::level::info);
 
     std::set<std::string> options;
 
@@ -23,9 +18,9 @@ int main(int argc, char *argv[])
         }
     }
     if (options.size()) {
-        log.info("command line options:");
+        spdlog::info("command line options:");
         for (auto &o : options) {
-            log.info("\n\t'{}'", o);
+            spdlog::info("\n\t'{}'", o);
         }
     }
 
@@ -35,16 +30,16 @@ int main(int argc, char *argv[])
     }
 
 #ifdef NDEBUG
-    log.info("Release build.");
+    spdlog::info("Release build.");
 #else
-    log.info("Debug build");
+    spdlog::info("Debug build");
 #endif
 
     try {
-        Application app(log, true, 3, singleFrame);
+        Application app(true, 3, singleFrame);
         app.run();
     } catch (const std::exception& e) {
-        log.critical(e.what());
+        spdlog::critical(e.what());
         return 1;
     }
 

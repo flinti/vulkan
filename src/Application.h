@@ -34,7 +34,7 @@ public:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 800;
 
-	Application(spdlog::logger &log, bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame);
+	Application(bool enableValidationLayers, uint32_t concurrentFrames, bool singleFrame);
 	~Application();
 	void run();
     void setTargetFps(float targetFps);
@@ -67,8 +67,6 @@ private:
     );
     static void framebufferResized(GLFWwindow* window, int width, int height);
 
-	spdlog::logger &log;
-
     uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
     bool paused = false;
@@ -91,6 +89,7 @@ private:
     std::vector<Frame> frames;
     VkCommandPool transferCommandPool = VK_NULL_HANDLE;
     bool needsSwapChainRecreation = false;
+    bool recreatingSwapChain = false;
     PushConstants pushConstants;
     std::vector<Mesh> meshes;
     std::vector<RenderObject> renderObjects;

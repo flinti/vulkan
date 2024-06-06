@@ -12,13 +12,11 @@
 #include <vulkan/vulkan_core.h>
 
 Device::Device(
-	spdlog::logger &log, 
 	Instance &instance, 
 	VkSurfaceKHR surface,
 	std::vector<const char *> extensionsToEnable
 )
-    : log(log),
-    instance(instance),
+    : instance(instance),
     surface(surface),
 	extensionsToEnable(extensionsToEnable)
 {
@@ -69,7 +67,7 @@ void Device::waitDeviceIdle()
 
 void Device::findAndChooseDevice()
 {
-	log.info("listing GPUs and choosing suitable ones");
+	spdlog::info("listing GPUs and choosing suitable ones");
 
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance.getHandle(), &deviceCount, nullptr);
@@ -99,13 +97,13 @@ void Device::findAndChooseDevice()
 		logLine << "\n\tvID " << deviceProperties.vendorID 
 			<< " dID " << deviceProperties.deviceID << ": " << deviceProperties.deviceName;
 	}
-	log.info(logLine.str());
+	spdlog::info(logLine.str());
 
 	if (physicalDevice == VK_NULL_HANDLE) {
 		throw std::runtime_error("GPUs were found, but no device is suitable!");
 	}
 
-	log.info("suitable device chosen.");
+	spdlog::info("suitable device chosen.");
 }
 
 bool Device::isDeviceSuitable(
@@ -196,14 +194,14 @@ QueueFamilyIndices Device::findNeededQueueFamilyIndices(VkPhysicalDevice device)
 
 		i++;
 	}
-	log.info(logLine.str());
+	spdlog::info(logLine.str());
 
 	return indices;
 }
 
 void Device::createLogicalDevice()
 {
-	log.info("creating logical device...");
+	spdlog::info("creating logical device...");
 
 	selectedQueueFamilyIndices = findNeededQueueFamilyIndices(physicalDevice);
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -241,7 +239,7 @@ void Device::createLogicalDevice()
 		for (const auto &extension : extensionsToEnable) {
 			logLine << "\n\t" << extension;
 		}
-		log.info(logLine.str());
+		spdlog::info(logLine.str());
 	}
 
 	// there is no longer a distinction between device and instance specific layers, but setting those fields for backwards compatibility
@@ -255,5 +253,5 @@ void Device::createLogicalDevice()
 	vkGetDeviceQueue(device, selectedQueueFamilyIndices.graphics.value(), 0, &graphicsQueue);
 	vkGetDeviceQueue(device, selectedQueueFamilyIndices.present.value(), 0, &presentQueue);
 
-	log.info("logical device created.");
+	spdlog::info("logical device created.");
 }

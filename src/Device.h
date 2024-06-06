@@ -25,7 +25,6 @@ class Device
 {
 public:
     Device(
-        spdlog::logger &log, 
         Instance &instance, 
         VkSurfaceKHR surface, 
         std::vector<const char *> extensionsToEnable = {}
@@ -64,7 +63,6 @@ private:
 
     VkSurfaceKHR surface;
     Instance &instance;
-    spdlog::logger &log;
 };
 
 #endif

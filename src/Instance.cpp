@@ -5,12 +5,10 @@
 #include <sstream>
 
 Instance::Instance(
-    spdlog::logger &log, 
     std::vector<const char *> extensionsToEnable,
     bool enableValidationLayers
 )
-    : log(log),
-    extensionsToEnable(extensionsToEnable),
+    : extensionsToEnable(extensionsToEnable),
     isValidationLayersEnabled(enableValidationLayers)
 {
     createInstance();
@@ -61,7 +59,7 @@ void Instance::createInstance()
 
 	// check validation layers & enable if applicable
 	if(isValidationLayersEnabled) {
-		log.info("Validation layers enabled. Checking layer support...");
+		spdlog::info("Validation layers enabled. Checking layer support...");
 
 		if(!checkValidationLayersSupported()) {
 			throw std::runtime_error("The required validation layers are not available!");
@@ -70,7 +68,7 @@ void Instance::createInstance()
 		createInfo.enabledLayerCount = static_cast<uint32_t>(requiredValidationLayers.size());
 		createInfo.ppEnabledLayerNames = requiredValidationLayers.data();
 	} else {
-		log.info("Validation layers disabled");
+		spdlog::info("Validation layers disabled");
 		createInfo.enabledLayerCount = 0;
 	}
 
@@ -86,7 +84,7 @@ void Instance::createInstance()
 		for (auto ext : extensions) {
 			logLine << "\n\t" << ext.extensionName << " v" << ext.specVersion;
 		}
-		log.info(logLine.str());
+		spdlog::info(logLine.str());
 	}
 
 	if(isValidationLayersEnabled) {
@@ -101,7 +99,7 @@ void Instance::createInstance()
 		for (const auto &extension : extensionsToEnable) {
 			logLine << "\n\t" << extension;
 		}
-		log.info(logLine.str());
+		spdlog::info(logLine.str());
 	}
 
 	// request debug messenger for instance creation and destruction, if applicable
@@ -112,12 +110,12 @@ void Instance::createInstance()
 	}
 
 	// create vulkan instance
-	log.info("creating instance...");
+	spdlog::info("creating instance...");
 	VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkCreateInstance failed with code {}", (int32_t)result));
 	}
-	log.info("Vulkan instance created.");
+	spdlog::info("Vulkan instance created.");
 }
 
 void Instance::setupDebugMessenger()
@@ -181,7 +179,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Instance::debugCallback(
 ) {
 	auto *myThis = static_cast<Instance *>(pUserData);
 
-    myThis->log.info("validation layer: {}", pCallbackData->pMessage);
+    spdlog::info("validation layer: {}", pCallbackData->pMessage);
 
     return VK_FALSE;
 }
