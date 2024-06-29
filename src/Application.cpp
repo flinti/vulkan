@@ -21,6 +21,7 @@
 #include <glm/fwd.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/trigonometric.hpp>
+#include <spdlog/common.h>
 #include <thread>
 #include <glm/gtc/matrix_transform.hpp>
 #include <memory>
@@ -110,9 +111,6 @@ void Application::initVulkan(bool validationLayers)
 
 	spdlog::info("creating pipeline...");
 	graphicsPipeline = std::make_unique<GraphicsPipeline>(device->getDeviceHandle(), *renderPass);
-
-	spdlog::info("creating initial objects");
-	createInitialObjects();
 	
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
@@ -121,6 +119,8 @@ void Application::initVulkan(bool validationLayers)
 			device->getQueueFamilyIndices().graphics.value()
 		);
 	}
+
+	createInitialObjects();
 }
 
 VkSurfaceFormatKHR Application::chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats)
@@ -242,6 +242,8 @@ void Application::createCommandPools()
 
 void Application::createInitialObjects()
 {
+	spdlog::info("creating initial objects...");
+
 	meshes.emplace_back(Mesh::createPlane(
 		{ 0.5f, 0.f, 0.f }, 
 		{ 0.f, 0.f, 0.5f },
@@ -250,16 +252,42 @@ void Application::createInitialObjects()
 	meshes.emplace_back(Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f }));
 	meshes.emplace_back(Mesh::createUnitCube());
 
-	renderObjects.emplace_back(*deviceAllocator, meshes[1]);
-	RenderObject &m = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
-	m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, 0.f)));
-	RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
-	m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f)));
-	RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, meshes[2]);
-	m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f)));
+	materials.emplace_back(*deviceAllocator, device->getDeviceHandle(), "./bird.png");
+
+	//renderObjects.reserve(7);
+
+	float s = 1.f;
+	std::string namePrefix = "";
+	for (unsigned i = 0; i < 2; ++i) {
+		RenderObject &m = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"x cube");
+		m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)));
+		RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"y cube");
+		m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)));
+		RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"z cube");
+		m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)));
+		s *= -1.f;
+		namePrefix = "-";
+	}
+	renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], "mid cube");
+
+	std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
+	imageBindingInfos[0] = VkDescriptorImageInfo{
+		.sampler = materials[0].getSamplerHandle(),
+		.imageView = materials[0].getImageViewHandle(),
+		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	};
+
+	for (auto &frame : frames) {
+		frame.requestDescriptorSet(
+			graphicsPipeline->getDescriptorSetLayout(), 
+			{},
+			imageBindingInfos
+		);
+		frame.updateDescriptorSets();
+	}
 }
 
-void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame)
 {
 	if (imageIndex >= swapChain->getImageCount()) {
 		throw std::invalid_argument("imageIndex is out of bounds");
@@ -327,8 +355,8 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	pushConstants.time = glm::vec4(secondsRunning);
 
 	for (const auto &r : renderObjects) {
+		graphicsPipeline->bindDescriptorSet(commandBuffer, frame.getFirstDescriptorSet());
 		pushConstants.transform = p * v * m * r.getTransform();
-		//pushConstants.transform[1][1] *= -1.f;
 		graphicsPipeline->pushConstants(
 			commandBuffer, 
 			static_cast<void *>(&pushConstants), 
@@ -380,7 +408,7 @@ void Application::draw()
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkResetCommandBuffer failed with code {}", (int32_t) result));
 	}
-	recordCommandBuffer(commandBuffer, imageIndex);
+	recordCommandBuffer(commandBuffer, imageIndex, frames[currentFrameIndex]);
 
 	VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	VkSubmitInfo submitInfo{};
@@ -481,6 +509,7 @@ void Application::cleanup()
 	spdlog::info("cleaning up...");
 
 	renderObjects.clear();
+	materials.clear();
 	frames.clear();
 	graphicsPipeline.reset();
 	depthImage.reset();

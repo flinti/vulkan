@@ -14,6 +14,8 @@
 #include "DeviceAllocator.h"
 #include "RenderObject.h"
 #include "DepthImage.h"
+#include "Image.h"
+#include "Material.h"
 
 #include <cstddef>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -52,7 +54,7 @@ private:
     void recreateSwapChain();
     void createCommandPools();
     void createInitialObjects();
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame);
     void mainLoop();
     void updateInfoDisplay();
     void draw();
@@ -85,6 +87,7 @@ private:
     std::unique_ptr<RenderPass> renderPass;
     std::vector<VkFramebuffer> swapChainFramebuffers;
     std::unique_ptr<GraphicsPipeline> graphicsPipeline;
+
     uint32_t currentFrameIndex = 0;
     std::vector<Frame> frames;
     VkCommandPool transferCommandPool = VK_NULL_HANDLE;
@@ -92,6 +95,7 @@ private:
     bool recreatingSwapChain = false;
     PushConstants pushConstants;
     std::vector<Mesh> meshes;
+    std::vector<Material> materials;
     std::vector<RenderObject> renderObjects;
 };
 

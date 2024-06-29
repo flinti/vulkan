@@ -13,9 +13,10 @@ class Mesh
 public:
     const std::vector<Vertex> &getVertexData() const;
     size_t getVertexDataSize() const;
+    uint32_t getVertexCount() const;
     const std::vector<uint16_t> &getIndexData() const;
     size_t getIndexDataSize() const;
-    size_t getIndexCount() const;
+    uint32_t getIndexCount() const;
     VkIndexType getIndexType() const;
 
     static Mesh createRegularPolygon(float r, uint32_t edges, glm::vec3 offset = glm::vec3(0.f));

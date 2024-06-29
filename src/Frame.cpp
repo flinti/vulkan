@@ -2,6 +2,8 @@
 #include "VkHelpers.h"
 
 #include <spdlog/fmt/fmt.h>
+#include <spdlog/spdlog.h>
+#include <utility>
 #include <vulkan/vulkan_core.h>
 
 Frame::Frame(VkDevice device, uint32_t renderQueueFamilyIndex)
@@ -33,8 +35,31 @@ Frame::Frame(VkDevice device, uint32_t renderQueueFamilyIndex)
     VK_ASSERT(vkCreateFence(device, &fenceInfo, nullptr, &fence));
 }
 
+Frame::Frame(Frame &&other)
+    : commandPool(other.commandPool),
+    commandBuffer(other.commandBuffer),
+    fence(other.fence),
+    imageAvailableSemaphore(other.imageAvailableSemaphore),
+    renderFinishedSemaphore(other.renderFinishedSemaphore),
+    descriptorPools(std::move(other.descriptorPools)),
+    descriptorSets(std::move(other.descriptorSets)),
+    device(other.device)
+{
+    other.commandPool = VK_NULL_HANDLE;
+    other.commandBuffer = VK_NULL_HANDLE;
+    other.fence = VK_NULL_HANDLE;
+    other.imageAvailableSemaphore = VK_NULL_HANDLE;
+    other.renderFinishedSemaphore = VK_NULL_HANDLE;
+}
+
 Frame::~Frame()
 {
+    for (auto &descriptorSet : descriptorSets) {
+        descriptorSet.reset();
+    }
+    for (auto &descriptorPool : descriptorPools) {
+        descriptorPool.reset();
+    }
     vkDestroyFence(device, fence, nullptr);
     vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
     vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
@@ -60,3 +85,44 @@ const VkSemaphore &Frame::getRenderFinishedSemaphore() const
 {
     return renderFinishedSemaphore;
 }
+
+DescriptorSet &Frame::requestDescriptorSet(
+    const DescriptorSetLayout &layout, 
+    std::map<uint32_t, VkDescriptorBufferInfo> bufferBindingInfos, 
+    std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos
+) {
+    auto &pool = requestDescriptorPool(layout);
+    DescriptorSet &set =  *descriptorSets.emplace_back(
+        std::make_unique<DescriptorSet>(device, pool, bufferBindingInfos, imageBindingInfos)
+    );
+
+    spdlog::debug("Frame::requestDescriptorSet: Created new descriptor set {}", (void *) set.getHandle());
+
+    return set;
+}
+
+void Frame::updateDescriptorSets()
+{
+    for (auto &set : descriptorSets) {
+        set->updateAll();
+    }
+}
+
+
+DescriptorPool &Frame::requestDescriptorPool(const DescriptorSetLayout &layout)
+{
+    for (auto &existingPool : descriptorPools) {
+        if (&existingPool->getDescriptorSetLayout() == &layout) {
+            return *existingPool;
+        }
+    }
+
+    DescriptorPool &pool =  *descriptorPools.emplace_back(
+        std::make_unique<DescriptorPool>(device, layout)
+    );
+
+    spdlog::debug("Frame::requestDescriptorPool: Created new descriptor pool");
+
+    return pool;
+}
+

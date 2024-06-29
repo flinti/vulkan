@@ -1,16 +1,22 @@
 #include "GraphicsPipeline.h"
+#include "DescriptorSetLayout.h"
+#include "DescriptorSet.h"
 #include "Utility.h"
 #include "Vertex.h"
 #include "RenderPass.h"
+#include "VkHelpers.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <array>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 GraphicsPipeline::GraphicsPipeline(VkDevice device, const RenderPass &renderPass)
 	: device(device),
-	renderPass(renderPass)
+	renderPass(renderPass),
+	descriptorSetLayout(device, getDescriptorSetLayoutBindings())
 {
+	createPipelineLayout();
 	createGraphicsPipeline();
 }
 
@@ -20,16 +26,77 @@ GraphicsPipeline::~GraphicsPipeline()
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 }
 
+
+const DescriptorSetLayout &GraphicsPipeline::getDescriptorSetLayout() const
+{
+	return descriptorSetLayout;
+}
+
 void GraphicsPipeline::bind(VkCommandBuffer commandBuffer)
 {
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
-void GraphicsPipeline::pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size)
+void GraphicsPipeline::bindDescriptorSet(VkCommandBuffer commandBuffer, const DescriptorSet &set)
 {
-	vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, size, data);
+	VkDescriptorSet setHandle = set.getHandle();
+	vkCmdBindDescriptorSets(
+		commandBuffer, 
+		VK_PIPELINE_BIND_POINT_GRAPHICS, 
+		pipelineLayout, 
+		0, 
+		1, 
+		&setHandle, 
+		0, 
+		nullptr
+	);
 }
 
+void GraphicsPipeline::pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size)
+{
+	vkCmdPushConstants(commandBuffer, 
+		pipelineLayout, 
+		VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 
+		0,
+		size, 
+		data
+	);
+}
+
+std::vector<VkDescriptorSetLayoutBinding> GraphicsPipeline::getDescriptorSetLayoutBindings()
+{
+	VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBinding{};
+	samplerDescriptorSetLayoutBinding.binding = 0;
+	samplerDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerDescriptorSetLayoutBinding.descriptorCount = 1;
+	samplerDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	return std::vector<VkDescriptorSetLayoutBinding>{samplerDescriptorSetLayoutBinding};
+}
+
+void GraphicsPipeline::createPipelineLayout()
+{
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(PushConstants);
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayout setLayout = descriptorSetLayout.getHandle();
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &setLayout;
+	pipelineLayoutInfo.pushConstantRangeCount = 1;
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+	VK_ASSERT(vkCreatePipelineLayout(
+		device, 
+		&pipelineLayoutInfo, 
+		nullptr, 
+		&pipelineLayout
+	));
+}
 
 VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte> &shader)
 {
@@ -154,24 +221,6 @@ void GraphicsPipeline::createGraphicsPipeline()
 	depthStencil.front = {};
 	depthStencil.back = {};
 
-	// pipeline layout
-	VkPushConstantRange pushConstantRange{};
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(PushConstants);
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
-	pipelineLayoutInfo.pushConstantRangeCount = 1;
-	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-
-	VkResult result = vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkCreatePipelineLayout failed with code {}", (int32_t) result));
-	}
-
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.stageCount = shaderStageInfos.size();
@@ -190,10 +239,14 @@ void GraphicsPipeline::createGraphicsPipeline()
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
 
-	result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkCreateGraphicsPipelines", (int32_t) result));
-	}
+	VK_ASSERT(vkCreateGraphicsPipelines(
+		device, 
+		VK_NULL_HANDLE, 
+		1, 
+		&pipelineInfo, 
+		nullptr, 
+		&pipeline
+	));
 
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);

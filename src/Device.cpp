@@ -116,12 +116,14 @@ bool Device::isDeviceSuitable(
 	bool familyIndicesComplete = queueFamilyIndices.isComplete();
 	bool extensionsSupported = checkDeviceRequiredExtensionsSupport(device);
 	bool swapChainAdequate = false;
+	bool anisotropicFilteringAvailable = deviceFeatures.samplerAnisotropy;
 	
 	if (extensionsSupported) {
-		swapChainAdequate = !swapChainSupportDetails.formats.empty() && !swapChainSupportDetails.presentModes.empty();
+		swapChainAdequate = !swapChainSupportDetails.formats.empty() 
+			&& !swapChainSupportDetails.presentModes.empty();
 	}
 
-	return familyIndicesComplete && extensionsSupported && swapChainAdequate;
+	return familyIndicesComplete && extensionsSupported && swapChainAdequate && anisotropicFilteringAvailable;
 }
 
 bool Device::checkDeviceRequiredExtensionsSupport(VkPhysicalDevice device)
@@ -223,6 +225,7 @@ void Device::createLogicalDevice()
 
 
 	VkPhysicalDeviceFeatures deviceFeatures{};
+	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 	VkDeviceCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
