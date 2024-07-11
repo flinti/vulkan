@@ -7,12 +7,12 @@
 Material::Material(
     DeviceAllocator &allocator, 
     VkDevice device, 
-    const std::filesystem::path &imageFile, 
+    const ImageResource &imageResource, 
     std::string name
 )
     : allocator(allocator),
     device(device),
-    image(allocator, device, imageFile),
+    image(allocator, device, imageResource),
     name(name)
 {
     imageView = createImageView();

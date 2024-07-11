@@ -8,11 +8,13 @@
 #include <filesystem>
 
 class DeviceAllocator;
+class ImageResource;
 
 class Image
 {
 public:
     Image(DeviceAllocator &allocator, VkDevice device, const std::filesystem::path &image);
+    Image(DeviceAllocator &allocator, VkDevice device, const ImageResource &image);
     Image(const Image &) = delete;
     Image(Image &&);
     ~Image();
@@ -20,6 +22,7 @@ public:
     VkImage getImageHandle() const;
 private:
     std::pair<VkImage, VmaAllocation> createImage(const std::filesystem::path &image);
+    std::pair<VkImage, VmaAllocation> createImage(const ImageResource &image);
 
     DeviceAllocator &allocator;
     VkDevice device;

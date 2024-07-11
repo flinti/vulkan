@@ -4,6 +4,7 @@
 #include "Mesh.h"
 #include "RenderObject.h"
 #include "RenderPass.h"
+#include "ResourceRepository.h"
 #include "VkHelpers.h"
 
 #include <GLFW/glfw3.h>
@@ -22,6 +23,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/trigonometric.hpp>
 #include <spdlog/common.h>
+#include <spdlog/spdlog.h>
 #include <thread>
 #include <glm/gtc/matrix_transform.hpp>
 #include <memory>
@@ -107,10 +109,27 @@ void Application::initVulkan(bool validationLayers)
 		device->getGraphicsQueue()
 	);
 
+	resourceRepository = std::make_unique<ResourceRepository>();
+	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
+		{ 0.5f, 0.f, 0.f }, 
+		{ 0.f, 0.f, 0.5f },
+		{ 0.f, 0.f, 0.f }
+	));
+	resourceRepository->insertMesh("mesh/hexagon",
+		Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f })
+		);
+	resourceRepository->insertMesh("mesh/cube", Mesh::createUnitCube());
+	spdlog::info("Loaded resources:\n{}", resourceRepository->resourceTree(1));
+
 	createRenderPassAndSwapChain();
 
 	spdlog::info("creating pipeline...");
-	graphicsPipeline = std::make_unique<GraphicsPipeline>(device->getDeviceHandle(), *renderPass);
+	graphicsPipeline = std::make_unique<GraphicsPipeline>(
+		device->getDeviceHandle(), 
+		*renderPass,
+		resourceRepository->getVertexShader("shader/shader.vert"),
+		resourceRepository->getFragmentShader("shader/shader.frag")
+	);
 	
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
@@ -244,31 +263,27 @@ void Application::createInitialObjects()
 {
 	spdlog::info("creating initial objects...");
 
-	meshes.emplace_back(Mesh::createPlane(
-		{ 0.5f, 0.f, 0.f }, 
-		{ 0.f, 0.f, 0.5f },
-		{ 0.f, 0.f, 0.f }
-	));
-	meshes.emplace_back(Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f }));
-	meshes.emplace_back(Mesh::createUnitCube());
+	materials.emplace_back(
+		*deviceAllocator,
+		device->getDeviceHandle(),
+		resourceRepository->getImage("image/bird.png")
+	);
 
-	materials.emplace_back(*deviceAllocator, device->getDeviceHandle(), "./bird.png");
-
-	//renderObjects.reserve(7);
+	const Mesh &cube = resourceRepository->getMesh("mesh/cube");
 
 	float s = 1.f;
 	std::string namePrefix = "";
 	for (unsigned i = 0; i < 2; ++i) {
-		RenderObject &m = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"x cube");
+		RenderObject &m = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"x cube");
 		m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)));
-		RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"y cube");
+		RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"y cube");
 		m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)));
-		RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], namePrefix+"z cube");
+		RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"z cube");
 		m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)));
 		s *= -1.f;
 		namePrefix = "-";
 	}
-	renderObjects.emplace_back(*deviceAllocator, meshes[2], materials[0], "mid cube");
+	renderObjects.emplace_back(*deviceAllocator, cube, materials[0], "mid cube");
 
 	std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
 	imageBindingInfos[0] = VkDescriptorImageInfo{
@@ -515,6 +530,7 @@ void Application::cleanup()
 	depthImage.reset();
     cleanupSwapChainAndFramebuffers();
 	renderPass.reset();
+	resourceRepository.reset();
 	deviceAllocator.reset();
 	vkDestroyCommandPool(device->getDeviceHandle(), transferCommandPool, nullptr);
 	device.reset();

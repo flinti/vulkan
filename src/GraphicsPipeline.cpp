@@ -1,7 +1,6 @@
 #include "GraphicsPipeline.h"
 #include "DescriptorSetLayout.h"
 #include "DescriptorSet.h"
-#include "Utility.h"
 #include "Vertex.h"
 #include "RenderPass.h"
 #include "VkHelpers.h"
@@ -11,13 +10,17 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-GraphicsPipeline::GraphicsPipeline(VkDevice device, const RenderPass &renderPass)
-	: device(device),
+GraphicsPipeline::GraphicsPipeline(
+        VkDevice device,
+        const RenderPass &renderPass,
+        const ShaderResource &vertexShader,
+        const ShaderResource &fragmentShader
+) : device(device),
 	renderPass(renderPass),
 	descriptorSetLayout(device, getDescriptorSetLayoutBindings())
 {
 	createPipelineLayout();
-	createGraphicsPipeline();
+	createGraphicsPipeline(vertexShader, fragmentShader);
 }
 
 GraphicsPipeline::~GraphicsPipeline()
@@ -114,12 +117,9 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte>
 	return shaderModule;
 }
 
-void GraphicsPipeline::createGraphicsPipeline()
+void GraphicsPipeline::createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader)
 {
 	// shaders
-	auto vertexShader = Utility::readFile("compiled/shader.vert");
-	auto fragmentShader = Utility::readFile("compiled/shader.frag");
-
 	VkShaderModule vertShaderModule = createShaderModule(vertexShader);
     VkShaderModule fragShaderModule = createShaderModule(fragmentShader);
 

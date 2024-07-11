@@ -12,7 +12,7 @@ public:
     Material(
         DeviceAllocator &allocator, 
         VkDevice device, 
-        const std::filesystem::path &imageFile, 
+        const ImageResource &imageResource, 
         std::string name = ""
     );
     Material(const Material &) = delete;

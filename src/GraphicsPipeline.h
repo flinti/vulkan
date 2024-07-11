@@ -3,6 +3,7 @@
 
 #include "DescriptorSet.h"
 #include "DescriptorSetLayout.h"
+#include "ResourceRepository.h"
 
 #include <vulkan/vulkan_core.h>
 #include <vector>
@@ -20,7 +21,12 @@ struct PushConstants {
 class GraphicsPipeline
 {
 public:
-    GraphicsPipeline(VkDevice device, const RenderPass &renderPass);
+    GraphicsPipeline(
+        VkDevice device,
+        const RenderPass &renderPass,
+        const ShaderResource &vertexShader,
+        const ShaderResource &fragmentShader
+    );
     ~GraphicsPipeline();
 
     const DescriptorSetLayout &getDescriptorSetLayout() const;
@@ -31,7 +37,7 @@ private:
     std::vector<VkDescriptorSetLayoutBinding> getDescriptorSetLayoutBindings();
     void createPipelineLayout();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
-    void createGraphicsPipeline();
+    void createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
 
     DescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;

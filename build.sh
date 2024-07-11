@@ -1,4 +1,4 @@
 #!/bin/bash
-glslc -o data/compiled/shader.frag data/shader.frag && \
-glslc -o data/compiled/shader.vert data/shader.vert && \
+glslc -o data/shader/shader.frag -fshader-stage=fragment data/shader.frag.glsl && \
+glslc -o data/shader/shader.vert -fshader-stage=vertex data/shader.vert.glsl && \
 cmake -S . -B build && cmake --build build

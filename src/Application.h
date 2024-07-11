@@ -3,6 +3,7 @@
 
 #include "GraphicsPipeline.h"
 #include "RenderObject.h"
+#include "ResourceRepository.h"
 #include "Vertex.h"
 #include "RenderPass.h"
 #include "SwapChain.h"
@@ -82,6 +83,7 @@ private:
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     std::unique_ptr<Device> device;
     std::unique_ptr<DeviceAllocator> deviceAllocator;
+    std::unique_ptr<ResourceRepository> resourceRepository;
     std::unique_ptr<SwapChain> swapChain;
     std::unique_ptr<DepthImage> depthImage;
     std::unique_ptr<RenderPass> renderPass;
@@ -94,7 +96,6 @@ private:
     bool needsSwapChainRecreation = false;
     bool recreatingSwapChain = false;
     PushConstants pushConstants;
-    std::vector<Mesh> meshes;
     std::vector<Material> materials;
     std::vector<RenderObject> renderObjects;
 };
