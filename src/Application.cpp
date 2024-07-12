@@ -30,6 +30,7 @@
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
+#include <vulkan/vk_enum_string_helper.h>
 #include <sstream>
 
 
@@ -169,6 +170,16 @@ void Application::createRenderPassAndSwapChain()
 	auto chosenSurfaceFormat = chooseSwapChainSurfaceFormat(
 		swapChainSupportDetails.formats
 	);
+
+	std::string surfaceFormats;
+	for (const auto &i : swapChainSupportDetails.formats) {
+		surfaceFormats += fmt::format(
+			"\t{} ({})\n",
+			string_VkFormat(i.format),
+			string_VkColorSpaceKHR(i.colorSpace)
+		);
+	}
+	spdlog::info("Supported swap chain surface formats:\n{}", surfaceFormats);
 
 	renderPass = std::make_unique<RenderPass>(
 		device->getDeviceHandle(), 
