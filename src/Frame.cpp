@@ -101,10 +101,12 @@ DescriptorPool &Frame::getDescriptorPool(uint32_t concurrencyIndex, const Descri
         return *i->second;
     }
 
-    return *descriptorPoolMap.emplace(
+    auto &ret = *descriptorPoolMap.emplace(
         hash,
         std::make_unique<DescriptorPool>(device, layout)
     ).first->second;
+    spdlog::info("Frame: created descriptor pool at {}", (void*) &ret);
+    return ret;
 }
 
 DescriptorSet &Frame::getDescriptorSet(
@@ -130,10 +132,12 @@ DescriptorSet &Frame::getDescriptorSet(
     }
     DescriptorPool &pool = getDescriptorPool(concurrencyIndex, layout);
 
-    return *descriptorSetMap.emplace(
+    auto &ret = *descriptorSetMap.emplace(
         hash,
         std::make_unique<DescriptorSet>(device, pool, bufferBindingInfos, imageBindingInfos)
     ).first->second;
+    spdlog::info("Frame: created descriptor set at {}", (void*) &ret);
+    return ret;
 }
 
 void Frame::updateDescriptorSets(uint32_t concurrencyIndex)

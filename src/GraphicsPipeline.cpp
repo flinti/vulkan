@@ -1,4 +1,5 @@
 #include "GraphicsPipeline.h"
+#include "Device.h"
 #include "DescriptorSetLayout.h"
 #include "DescriptorSet.h"
 #include "Material.h"
@@ -12,13 +13,15 @@
 #include <vulkan/vulkan_core.h>
 
 GraphicsPipeline::GraphicsPipeline(
-        VkDevice device,
+        Device &device,
         const RenderPass &renderPass,
 		const Material &material
 ) : device(device),
 	renderPass(renderPass),
 	material(material),
-	descriptorSetLayout(device, material.getDescriptorSetLayoutBindings())
+	descriptorSetLayout(
+		device.getObjectCache().getDescriptorSetLayout(material.getDescriptorSetLayoutBindings())
+	)
 {
 	createPipelineLayout();
 	createGraphicsPipeline(
@@ -29,8 +32,8 @@ GraphicsPipeline::GraphicsPipeline(
 
 GraphicsPipeline::~GraphicsPipeline()
 {
-	vkDestroyPipeline(device, pipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyPipeline(device.getDeviceHandle(), pipeline, nullptr);
+	vkDestroyPipelineLayout(device.getDeviceHandle(), pipelineLayout, nullptr);
 }
 
 const Material &GraphicsPipeline::getMaterial() const
@@ -90,7 +93,7 @@ void GraphicsPipeline::createPipelineLayout()
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 	VK_ASSERT(vkCreatePipelineLayout(
-		device, 
+		device.getDeviceHandle(), 
 		&pipelineLayoutInfo, 
 		nullptr, 
 		&pipelineLayout
@@ -105,7 +108,7 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte>
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(shader.data());
 
 	VkShaderModule shaderModule = VK_NULL_HANDLE;
-	VkResult result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
+	VkResult result = vkCreateShaderModule(device.getDeviceHandle(), &createInfo, nullptr, &shaderModule);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkCreateShaderModule failed with code {}", (int32_t) result));
 	}
@@ -236,7 +239,7 @@ void GraphicsPipeline::createGraphicsPipeline(const ShaderResource &vertexShader
 	pipelineInfo.basePipelineIndex = -1;
 
 	VK_ASSERT(vkCreateGraphicsPipelines(
-		device, 
+		device.getDeviceHandle(), 
 		VK_NULL_HANDLE, 
 		1, 
 		&pipelineInfo, 
@@ -244,6 +247,6 @@ void GraphicsPipeline::createGraphicsPipeline(const ShaderResource &vertexShader
 		&pipeline
 	));
 
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(device.getDeviceHandle(), vertShaderModule, nullptr);
+	vkDestroyShaderModule(device.getDeviceHandle(), fragShaderModule, nullptr);
 }

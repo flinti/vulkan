@@ -1,4 +1,5 @@
 #include "VulkanObjectCache.h"
+#include "DescriptorSetLayout.h"
 #include "VkHelpers.h"
 #include "VkHash.h"
 #include <vulkan/vulkan_core.h>
@@ -29,4 +30,20 @@ VkSampler VulkanObjectCache::getSampler(const VkSamplerCreateInfo &info)
     VK_ASSERT(vkCreateSampler(device, &info, nullptr, &newSampler));
     samplers.emplace(hash, newSampler);
     return newSampler;
+}
+
+DescriptorSetLayout &VulkanObjectCache::getDescriptorSetLayout(
+    const std::vector<VkDescriptorSetLayoutBinding> &bindings,
+    VkDescriptorSetLayoutCreateFlags flags
+)
+{
+    size_t hash = hash_value(flags);
+    for (auto &binding : bindings) {
+        hash_combine(hash, binding);
+    }
+    auto i = descriptorSetLayouts.find(hash);
+    if (i != descriptorSetLayouts.end()) {
+        return *i->second;
+    }
+    return *descriptorSetLayouts.emplace(hash, std::make_unique<DescriptorSetLayout>(device, bindings)).first->second;
 }

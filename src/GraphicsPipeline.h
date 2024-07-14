@@ -13,6 +13,7 @@
 class RenderPass;
 class DescriptorSet;
 class Material;
+class Device;
 
 struct PushConstants {
     glm::mat4 transform;
@@ -23,7 +24,7 @@ class GraphicsPipeline
 {
 public:
     GraphicsPipeline(
-        VkDevice device,
+        Device &device,
         const RenderPass &renderPass,
         const Material &material
     );
@@ -39,13 +40,13 @@ private:
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
 
-    DescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline pipeline = VK_NULL_HANDLE;
 
-    VkDevice device;
+    Device &device;
     const RenderPass &renderPass;
     const Material &material;
+    DescriptorSetLayout &descriptorSetLayout;
 };
 
 #endif

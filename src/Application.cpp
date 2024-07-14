@@ -559,7 +559,7 @@ void Application::addMaterial(std::unique_ptr<Material> material)
 	graphicsPipelines.insert(std::make_pair(
 		inserted.getId(),
 		std::make_unique<GraphicsPipeline>(
-			device->getDeviceHandle(),
+			*device,
 			*renderPass,
 			inserted
 	)));

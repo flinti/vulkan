@@ -17,12 +17,17 @@ public:
     ~VulkanObjectCache();
 
     VkSampler getSampler(const VkSamplerCreateInfo &info);
+    DescriptorSetLayout &getDescriptorSetLayout(
+        const std::vector<VkDescriptorSetLayoutBinding> &bindings,
+        VkDescriptorSetLayoutCreateFlags flags = 0
+    );
 private:
     VkInstance instance;
     VkPhysicalDevice physicalDevice;
     VkDevice device;
 
     std::unordered_map<KeyType, VkSampler> samplers;
+    std::unordered_map<KeyType, std::unique_ptr<DescriptorSetLayout>> descriptorSetLayouts;
 };
 
 #endif
