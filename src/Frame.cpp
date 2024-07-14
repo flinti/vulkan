@@ -1,4 +1,6 @@
 #include "Frame.h"
+#include "DescriptorPool.h"
+#include "VkHash.h"
 #include "VkHelpers.h"
 
 #include <spdlog/fmt/fmt.h>
@@ -41,8 +43,6 @@ Frame::Frame(Frame &&other)
     fence(other.fence),
     imageAvailableSemaphore(other.imageAvailableSemaphore),
     renderFinishedSemaphore(other.renderFinishedSemaphore),
-    descriptorPools(std::move(other.descriptorPools)),
-    descriptorSets(std::move(other.descriptorSets)),
     device(other.device)
 {
     other.commandPool = VK_NULL_HANDLE;
@@ -54,11 +54,15 @@ Frame::Frame(Frame &&other)
 
 Frame::~Frame()
 {
-    for (auto &descriptorSet : descriptorSets) {
-        descriptorSet.reset();
+    for (auto &map : descriptorSets) {
+        for (auto &i : map.second) {
+            i.second.reset();
+        }
     }
-    for (auto &descriptorPool : descriptorPools) {
-        descriptorPool.reset();
+    for (auto &map : descriptorPools) {
+        for (auto &i : map.second) {
+            i.second.reset();
+        }
     }
     vkDestroyFence(device, fence, nullptr);
     vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
@@ -86,43 +90,59 @@ const VkSemaphore &Frame::getRenderFinishedSemaphore() const
     return renderFinishedSemaphore;
 }
 
-DescriptorSet &Frame::requestDescriptorSet(
-    const DescriptorSetLayout &layout, 
-    std::map<uint32_t, VkDescriptorBufferInfo> bufferBindingInfos, 
-    std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos
-) {
-    auto &pool = requestDescriptorPool(layout);
-    DescriptorSet &set =  *descriptorSets.emplace_back(
-        std::make_unique<DescriptorSet>(device, pool, bufferBindingInfos, imageBindingInfos)
-    );
-
-    spdlog::debug("Frame::requestDescriptorSet: Created new descriptor set {}", (void *) set.getHandle());
-
-    return set;
-}
-
-void Frame::updateDescriptorSets()
+DescriptorPool &Frame::getDescriptorPool(uint32_t concurrencyIndex, const DescriptorSetLayout &layout)
 {
-    for (auto &set : descriptorSets) {
-        set->updateAll();
+    size_t hash = hash_value(layout);
+
+    auto &descriptorPoolMap = descriptorPools[concurrencyIndex];
+
+    auto i = descriptorPoolMap.find(hash);
+    if (i != descriptorPoolMap.end()) {
+        return *i->second;
     }
+
+    return *descriptorPoolMap.emplace(
+        hash,
+        std::make_unique<DescriptorPool>(device, layout)
+    ).first->second;
 }
 
-
-DescriptorPool &Frame::requestDescriptorPool(const DescriptorSetLayout &layout)
+DescriptorSet &Frame::getDescriptorSet(
+    uint32_t concurrencyIndex,
+    const DescriptorSetLayout &layout, 
+    const std::map<uint32_t, VkDescriptorBufferInfo> &bufferBindingInfos, 
+    const std::map<uint32_t, VkDescriptorImageInfo> &imageBindingInfos
+)
 {
-    for (auto &existingPool : descriptorPools) {
-        if (&existingPool->getDescriptorSetLayout() == &layout) {
-            return *existingPool;
+    size_t hash = hash_value(layout);
+    for (auto &i : bufferBindingInfos) {
+        hash_combine(hash, i.second);
+    }
+    for (auto &i : imageBindingInfos) {
+        hash_combine(hash, i.second);
+    }
+
+    auto &descriptorSetMap = descriptorSets[concurrencyIndex];
+
+    auto i = descriptorSetMap.find(hash);
+    if (i != descriptorSetMap.end()) {
+        return *i->second;
+    }
+    DescriptorPool &pool = getDescriptorPool(concurrencyIndex, layout);
+
+    return *descriptorSetMap.emplace(
+        hash,
+        std::make_unique<DescriptorSet>(device, pool, bufferBindingInfos, imageBindingInfos)
+    ).first->second;
+}
+
+void Frame::updateDescriptorSets(uint32_t concurrencyIndex)
+{
+    auto map = descriptorSets.find(concurrencyIndex);
+    if (map != descriptorSets.end()) {
+        for (auto &set : map->second) {
+            set.second->updateAll();
         }
     }
-
-    DescriptorPool &pool =  *descriptorPools.emplace_back(
-        std::make_unique<DescriptorPool>(device, layout)
-    );
-
-    spdlog::debug("Frame::requestDescriptorPool: Created new descriptor pool");
-
-    return pool;
 }
 

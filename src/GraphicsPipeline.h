@@ -12,6 +12,7 @@
 
 class RenderPass;
 class DescriptorSet;
+class Material;
 
 struct PushConstants {
     glm::mat4 transform;
@@ -24,17 +25,16 @@ public:
     GraphicsPipeline(
         VkDevice device,
         const RenderPass &renderPass,
-        const ShaderResource &vertexShader,
-        const ShaderResource &fragmentShader
+        const Material &material
     );
     ~GraphicsPipeline();
 
     const DescriptorSetLayout &getDescriptorSetLayout() const;
+    const Material &getMaterial() const;
     void bind(VkCommandBuffer commandBuffer);
     void bindDescriptorSet(VkCommandBuffer commandBuffer, const DescriptorSet &set);
     void pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size);
 private:
-    std::vector<VkDescriptorSetLayoutBinding> getDescriptorSetLayoutBindings();
     void createPipelineLayout();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
     void createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
@@ -45,6 +45,7 @@ private:
 
     VkDevice device;
     const RenderPass &renderPass;
+    const Material &material;
 };
 
 #endif

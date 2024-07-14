@@ -2,7 +2,6 @@
 #define RENDEROBJECT_H_
 
 #include "Buffer.h"
-#include "DeviceAllocator.h"
 #include "Image.h"
 #include <memory>
 #include <string>
@@ -11,11 +10,12 @@
 
 class Mesh;
 class Material;
+class Device;
 
 class RenderObject
 {
 public:
-    RenderObject(DeviceAllocator &allocator, const Mesh &mesh, const Material &material, std::string name = "");
+    RenderObject(Device &device, const Mesh &mesh, const Material &material, std::string name = "");
     RenderObject(const RenderObject &) = delete;
     RenderObject(RenderObject &&);
     ~RenderObject();
@@ -26,14 +26,14 @@ public:
 
     void enqueueDrawCommands(VkCommandBuffer commandBuffer)const ;
 private:
+    Device &device;
+    const Material &material;
     glm::mat4 transform;
     uint32_t indexCount;
     uint32_t vertexCount;
     VkIndexType indexType;
-    DeviceAllocator &allocator;
     Buffer vertexBuffer;
     std::unique_ptr<Buffer> indexBuffer;
-    const Material &material;
     std::string name;
 };
 

@@ -1,11 +1,11 @@
 #include "DepthImage.h"
-#include"VkHelpers.h"
+#include "Device.h"
+#include "VkHelpers.h"
 
 #include <vulkan/vulkan_core.h>
 
-DepthImage::DepthImage(DeviceAllocator &allocator, VkDevice device, uint32_t width, uint32_t height)
-    : allocator(allocator),
-    device(device),
+DepthImage::DepthImage(Device &device, uint32_t width, uint32_t height)
+    : device(device),
     depthImage(VK_NULL_HANDLE, VK_NULL_HANDLE)
 {
     createImage(width, height);
@@ -15,10 +15,10 @@ DepthImage::DepthImage(DeviceAllocator &allocator, VkDevice device, uint32_t wid
 DepthImage::~DepthImage()
 {
     if (depthImageView != VK_NULL_HANDLE) {
-        vkDestroyImageView(device, depthImageView, nullptr);
+        vkDestroyImageView(device.getDeviceHandle(), depthImageView, nullptr);
     }
     if (depthImage.first != VK_NULL_HANDLE && depthImage.second != VK_NULL_HANDLE) {
-        allocator.free(depthImage);
+        device.getAllocator().free(depthImage);
     }
 }
 
@@ -34,7 +34,7 @@ VkImageView DepthImage::getImageViewHandle() const
 
 void DepthImage::createImage(uint32_t width, uint32_t height)
 {
-    depthImage = allocator.allocateImageAttachment(
+    depthImage = device.getAllocator().allocateImageAttachment(
         width, 
         height, 
         VK_FORMAT_D24_UNORM_S8_UINT, 
@@ -55,5 +55,5 @@ void DepthImage::createImageView()
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    VK_ASSERT(vkCreateImageView(device, &viewInfo, nullptr, &depthImageView));
+    VK_ASSERT(vkCreateImageView(device.getDeviceHandle(), &viewInfo, nullptr, &depthImageView));
 }

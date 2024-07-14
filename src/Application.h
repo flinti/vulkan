@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/scalar_uint_sized.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <memory>
 #include <GLFW/glfw3.h>
@@ -27,6 +28,7 @@
 #include <filesystem>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -53,14 +55,16 @@ private:
         const VkSurfaceFormatKHR &chosenSurfaceFormat
     );
     void recreateSwapChain();
-    void createCommandPools();
+    void loadResources();
     void createInitialObjects();
+    void updateDescriptors(Frame &frame);
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame);
     void mainLoop();
     void updateInfoDisplay();
     void draw();
     void cleanupSwapChainAndFramebuffers();
     void cleanup();
+    void addMaterial(std::unique_ptr<Material> material);
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT, 
@@ -82,21 +86,19 @@ private:
     std::unique_ptr<Instance> instance;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     std::unique_ptr<Device> device;
-    std::unique_ptr<DeviceAllocator> deviceAllocator;
     std::unique_ptr<ResourceRepository> resourceRepository;
     std::unique_ptr<SwapChain> swapChain;
     std::unique_ptr<DepthImage> depthImage;
     std::unique_ptr<RenderPass> renderPass;
     std::vector<VkFramebuffer> swapChainFramebuffers;
-    std::unique_ptr<GraphicsPipeline> graphicsPipeline;
 
     uint32_t currentFrameIndex = 0;
     std::vector<Frame> frames;
-    VkCommandPool transferCommandPool = VK_NULL_HANDLE;
     bool needsSwapChainRecreation = false;
     bool recreatingSwapChain = false;
     PushConstants pushConstants;
-    std::vector<Material> materials;
+    std::unordered_map<uint32_t, std::unique_ptr<Material>> materials;
+    std::unordered_map<uint32_t, std::unique_ptr<GraphicsPipeline>> graphicsPipelines;
     std::vector<RenderObject> renderObjects;
 };
 

@@ -13,8 +13,8 @@ class ImageResource;
 class Image
 {
 public:
-    Image(DeviceAllocator &allocator, VkDevice device, const std::filesystem::path &image);
-    Image(DeviceAllocator &allocator, VkDevice device, const ImageResource &image);
+    Image(Device &device, const std::filesystem::path &image);
+    Image(Device &device, const ImageResource &image);
     Image(const Image &) = delete;
     Image(Image &&);
     ~Image();
@@ -24,8 +24,7 @@ private:
     std::pair<VkImage, VmaAllocation> createImage(const std::filesystem::path &image);
     std::pair<VkImage, VmaAllocation> createImage(const ImageResource &image);
 
-    DeviceAllocator &allocator;
-    VkDevice device;
+    Device &device;
 
     std::pair<VkImage, VmaAllocation> image = std::make_pair<VkImage, VmaAllocation>(VK_NULL_HANDLE, VK_NULL_HANDLE);
 };

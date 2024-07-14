@@ -1,30 +1,43 @@
 #include "Material.h"
+#include "Device.h"
 #include "DeviceAllocator.h"
+#include "GraphicsPipeline.h"
 #include "Image.h"
 #include "VkHelpers.h"
+#include <cstdint>
+#include <spdlog/spdlog.h>
+#include <utility>
 #include <vulkan/vulkan_core.h>
 
 Material::Material(
-    DeviceAllocator &allocator, 
-    VkDevice device, 
-    const ImageResource &imageResource, 
+    Device &device,
+    const ShaderResource &vertexShader,
+    const ShaderResource &fragmentShader,
+    const ImageResource &imageResource,
+    uint32_t id,
     std::string name
 )
-    : allocator(allocator),
+    : id(id),
     device(device),
-    image(allocator, device, imageResource),
+    vertexShader(vertexShader),
+    fragmentShader(fragmentShader),
+    image(device, imageResource),
+    imageView(createImageView()),
+    sampler(requestSampler()),
+    descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
+    descriptorImageInfos(createDescriptorImageInfos()),
     name(name)
 {
-    imageView = createImageView();
-    sampler = createSampler();
 }
 
 Material::Material(Material &&other)
-    : allocator(other.allocator),
-    device(other.device),
+    : device(other.device),
+    vertexShader(other.vertexShader),
+    fragmentShader(other.fragmentShader),
     image(std::move(other.image)),
     imageView(other.imageView),
     sampler(other.sampler),
+    descriptorSetLayoutBindings(std::move(other.descriptorSetLayoutBindings)),
     name(std::move(other.name))
 {
     other.imageView = VK_NULL_HANDLE;
@@ -34,11 +47,24 @@ Material::Material(Material &&other)
 Material::~Material()
 {
     if (imageView != VK_NULL_HANDLE) {
-        vkDestroyImageView(device, imageView, nullptr);
+        vkDestroyImageView(device.getDeviceHandle(), imageView, nullptr);
     }
-    if (sampler != VK_NULL_HANDLE) {
-        vkDestroySampler(device, sampler, nullptr);
-    }
+}
+
+
+uint32_t Material::getId() const
+{
+    return id;
+}
+
+const ShaderResource &Material::getVertexShaderResource() const
+{
+    return vertexShader;
+}
+
+const ShaderResource &Material::getFragmentShaderResource() const
+{
+    return fragmentShader;
 }
 
 VkImage Material::getImageHandle() const
@@ -56,6 +82,16 @@ VkSampler Material::getSamplerHandle() const
     return sampler;
 }
 
+const std::vector<VkDescriptorSetLayoutBinding> &Material::getDescriptorSetLayoutBindings() const
+{
+    return descriptorSetLayoutBindings;
+}
+
+const std::map<uint32_t, VkDescriptorImageInfo> &Material::getDescriptorImageInfos() const
+{
+    return descriptorImageInfos;
+}
+
 VkImageView Material::createImageView()
 {
     VkImageViewCreateInfo viewInfo{};
@@ -70,11 +106,11 @@ VkImageView Material::createImageView()
     viewInfo.subresourceRange.layerCount = 1;
 
     VkImageView imageView;
-    VK_ASSERT(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
+    VK_ASSERT(vkCreateImageView(device.getDeviceHandle(), &viewInfo, nullptr, &imageView));
     return imageView;
 }
 
-VkSampler Material::createSampler()
+VkSampler Material::requestSampler()
 {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -90,8 +126,29 @@ VkSampler Material::createSampler()
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 0.0f;
 
-    VkSampler sampler;
-    VK_ASSERT(vkCreateSampler(device, &samplerInfo, nullptr, &sampler));
-    return sampler;
+    return device.getObjectCache().getSampler(samplerInfo);
 }
 
+std::vector<VkDescriptorSetLayoutBinding> Material::createDescriptorSetLayoutBindings()
+{
+    VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBinding{};
+	samplerDescriptorSetLayoutBinding.binding = 0;
+	samplerDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerDescriptorSetLayoutBinding.descriptorCount = 1;
+	samplerDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	return std::vector<VkDescriptorSetLayoutBinding>{samplerDescriptorSetLayoutBinding};
+}
+
+std::map<uint32_t, VkDescriptorImageInfo> Material::createDescriptorImageInfos()
+{
+    std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
+	imageBindingInfos[0] = VkDescriptorImageInfo{
+		.sampler = sampler,
+		.imageView = imageView,
+		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	};
+
+    return imageBindingInfos;
+}

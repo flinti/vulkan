@@ -1,6 +1,7 @@
 #include "GraphicsPipeline.h"
 #include "DescriptorSetLayout.h"
 #include "DescriptorSet.h"
+#include "Material.h"
 #include "Vertex.h"
 #include "RenderPass.h"
 #include "VkHelpers.h"
@@ -13,14 +14,17 @@
 GraphicsPipeline::GraphicsPipeline(
         VkDevice device,
         const RenderPass &renderPass,
-        const ShaderResource &vertexShader,
-        const ShaderResource &fragmentShader
+		const Material &material
 ) : device(device),
 	renderPass(renderPass),
-	descriptorSetLayout(device, getDescriptorSetLayoutBindings())
+	material(material),
+	descriptorSetLayout(device, material.getDescriptorSetLayoutBindings())
 {
 	createPipelineLayout();
-	createGraphicsPipeline(vertexShader, fragmentShader);
+	createGraphicsPipeline(
+		material.getVertexShaderResource(),
+		material.getFragmentShaderResource()
+	);
 }
 
 GraphicsPipeline::~GraphicsPipeline()
@@ -29,6 +33,10 @@ GraphicsPipeline::~GraphicsPipeline()
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 }
 
+const Material &GraphicsPipeline::getMaterial() const
+{
+	return material;
+}
 
 const DescriptorSetLayout &GraphicsPipeline::getDescriptorSetLayout() const
 {
@@ -64,18 +72,6 @@ void GraphicsPipeline::pushConstants(VkCommandBuffer commandBuffer, const void *
 		size, 
 		data
 	);
-}
-
-std::vector<VkDescriptorSetLayoutBinding> GraphicsPipeline::getDescriptorSetLayoutBindings()
-{
-	VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBinding{};
-	samplerDescriptorSetLayoutBinding.binding = 0;
-	samplerDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerDescriptorSetLayoutBinding.descriptorCount = 1;
-	samplerDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	samplerDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	return std::vector<VkDescriptorSetLayoutBinding>{samplerDescriptorSetLayoutBinding};
 }
 
 void GraphicsPipeline::createPipelineLayout()

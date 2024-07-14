@@ -8,7 +8,7 @@
 class DepthImage
 {
 public:
-    DepthImage(DeviceAllocator &allocator, VkDevice device, uint32_t width, uint32_t height);
+    DepthImage(Device &device, uint32_t width, uint32_t height);
     ~DepthImage();
 
     VkImage getImageHandle() const;
@@ -17,8 +17,7 @@ private:
     void createImage(uint32_t width, uint32_t height);
     void createImageView();
 
-    DeviceAllocator &allocator;
-    VkDevice device;
+    Device &device;
     std::pair<VkImage, VmaAllocation> depthImage;
     VkImageView depthImageView = VK_NULL_HANDLE;
 };

@@ -5,6 +5,7 @@
 #include "DescriptorPool.h"
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -20,13 +21,14 @@ public:
     const VkFence &getFence() const;
     const VkSemaphore &getImageAvailableSemaphore() const;
     const VkSemaphore &getRenderFinishedSemaphore() const;
-    const DescriptorSet &getFirstDescriptorSet() const { return *descriptorSets[0]; }
-    DescriptorSet &requestDescriptorSet(
+    DescriptorPool &getDescriptorPool(uint32_t concurrencyIndex, const DescriptorSetLayout &layout);
+    DescriptorSet &getDescriptorSet(
+        uint32_t concurrencyIndex,
         const DescriptorSetLayout &layout, 
-        std::map<uint32_t, VkDescriptorBufferInfo> bufferBindingInfos, 
-        std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos
+        const std::map<uint32_t, VkDescriptorBufferInfo> &bufferBindingInfos, 
+        const std::map<uint32_t, VkDescriptorImageInfo> &imageBindingInfos
     );
-    void updateDescriptorSets();
+    void updateDescriptorSets(uint32_t concurrencyIndex);
 private:
     DescriptorPool &requestDescriptorPool(const DescriptorSetLayout &layout);
 
@@ -36,8 +38,8 @@ private:
     VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
     VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
 
-    std::vector<std::unique_ptr<DescriptorPool>> descriptorPools;
-    std::vector<std::unique_ptr<DescriptorSet>> descriptorSets;
+    std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorPool>>> descriptorPools;
+    std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorSet>>> descriptorSets;
 
     VkDevice device;
 };

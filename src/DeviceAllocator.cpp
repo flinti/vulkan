@@ -20,6 +20,8 @@ DeviceAllocator::DeviceAllocator(
     immediateTransferPool(immediateTransferPool),
     immediateTransferQueue(immediateTransferQueue)
 {
+    spdlog::info("DeviceAllocator: creating vma allocator...");
+
     VmaAllocatorCreateInfo createInfo{};
     createInfo.instance = instance;
     createInfo.physicalDevice = physicalDevice;

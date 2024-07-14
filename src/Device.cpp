@@ -1,10 +1,13 @@
 #include "Device.h"
+#include "DeviceAllocator.h"
 #include "VkHelpers.h"
 #include "Instance.h"
+#include "VulkanObjectCache.h"
 
 #include <GLFW/glfw3.h>
 #include <iomanip>
 #include <ios>
+#include <memory>
 #include <stdexcept>
 #include <sstream>
 #include <set>
@@ -18,16 +21,44 @@ Device::Device(
 )
     : instance(instance),
     surface(surface),
-	extensionsToEnable(extensionsToEnable)
+	extensionsToEnable(extensionsToEnable),
+	selectedQueueFamilyIndices{},
+	graphicsQueue(VK_NULL_HANDLE),
+	presentQueue(VK_NULL_HANDLE),
+	physicalDevice(chooseSuitablePhysicalDevice()),
+	device(createLogicalDevice()),
+	transferCommandPool(createTransferCommandPool()),
+	allocator(std::make_unique<DeviceAllocator>(
+		instance.getHandle(),
+		physicalDevice,
+		device,
+		transferCommandPool,
+		graphicsQueue)
+	),
+	objectCache(std::make_unique<VulkanObjectCache>(instance.getHandle(), physicalDevice, device))
 {
-    findAndChooseDevice();
-    createLogicalDevice();
 }
 
 Device::~Device()
 {
+	objectCache.reset();
+	vkDestroyCommandPool(device, transferCommandPool, nullptr);
+	allocator.reset();
+	
     vkDestroyDevice(device, nullptr);
 }
+
+
+VulkanObjectCache &Device::getObjectCache()
+{
+	return *objectCache;
+}
+
+DeviceAllocator &Device::getAllocator()
+{
+	return *allocator;
+}
+
 
 VkInstance Device::getInstanceHandle()
 {
@@ -65,10 +96,11 @@ void Device::waitDeviceIdle()
 }
 
 
-void Device::findAndChooseDevice()
+VkPhysicalDevice Device::chooseSuitablePhysicalDevice()
 {
 	spdlog::info("listing GPUs and choosing suitable ones");
 
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance.getHandle(), &deviceCount, nullptr);
 	if (!deviceCount) {
@@ -104,6 +136,7 @@ void Device::findAndChooseDevice()
 	}
 
 	spdlog::info("suitable device chosen.");
+	return physicalDevice;
 }
 
 bool Device::isDeviceSuitable(
@@ -201,9 +234,11 @@ QueueFamilyIndices Device::findNeededQueueFamilyIndices(VkPhysicalDevice device)
 	return indices;
 }
 
-void Device::createLogicalDevice()
+VkDevice Device::createLogicalDevice()
 {
 	spdlog::info("creating logical device...");
+
+	VkDevice device = VK_NULL_HANDLE;
 
 	selectedQueueFamilyIndices = findNeededQueueFamilyIndices(physicalDevice);
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -257,4 +292,26 @@ void Device::createLogicalDevice()
 	vkGetDeviceQueue(device, selectedQueueFamilyIndices.present.value(), 0, &presentQueue);
 
 	spdlog::info("logical device created.");
+	return device;
+}
+
+VkCommandPool Device::createTransferCommandPool()
+{
+	spdlog::info("creating transfer command pool...");
+
+	VkCommandPool transferCommandPool;
+
+	VkCommandPoolCreateInfo poolInfo{};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	poolInfo.queueFamilyIndex = selectedQueueFamilyIndices.graphics.value();
+
+	VK_ASSERT(vkCreateCommandPool(
+		device, 
+		&poolInfo, 
+		nullptr, 
+		&transferCommandPool
+	));
+
+	return transferCommandPool;
 }

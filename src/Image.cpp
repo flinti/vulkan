@@ -1,4 +1,5 @@
 #include "Image.h"
+#include "Device.h"
 #include "ResourceRepository.h"
 #include "VkHelpers.h"
 #include "third-party/stb_image.h"
@@ -9,23 +10,20 @@
 #include <utility>
 #include <vulkan/vulkan_core.h>
 
-Image::Image(DeviceAllocator &allocator, VkDevice device, const std::filesystem::path &image)
-    : allocator(allocator),
-    device(device),
+Image::Image(Device &device, const std::filesystem::path &image)
+    : device(device),
     image(createImage(image))
 {
 }
 
-Image::Image(DeviceAllocator &allocator, VkDevice device, const ImageResource &image)
-    : allocator(allocator),
-    device(device),
+Image::Image(Device &device, const ImageResource &image)
+    : device(device),
     image(createImage(image))
 {
 }
 
 Image::Image(Image &&i)
-    : allocator(i.allocator),
-    device(i.device),
+    : device(i.device),
     image(i.image)
 {
     i.image = std::make_pair<VkImage, VmaAllocation>(VK_NULL_HANDLE, VK_NULL_HANDLE);
@@ -34,7 +32,7 @@ Image::Image(Image &&i)
 Image::~Image()
 {
     if (image.first != VK_NULL_HANDLE && image.second != VK_NULL_HANDLE) {
-        allocator.free(image);
+        device.getAllocator().free(image);
     }
 }
 
@@ -62,7 +60,7 @@ std::pair<VkImage, VmaAllocation> Image::createImage(const std::filesystem::path
         throw std::runtime_error(fmt::format("Image::createImage: failed to load image {}", imagePath.c_str()));
     }
 
-    image = allocator.allocateDeviceLocalImageAndTransfer(
+    image = device.getAllocator().allocateDeviceLocalImageAndTransfer(
         static_cast<void *>(imageData.get()), 
         wdt, 
         hgt, 
@@ -75,7 +73,7 @@ std::pair<VkImage, VmaAllocation> Image::createImage(const std::filesystem::path
 
 std::pair<VkImage, VmaAllocation> Image::createImage(const ImageResource &image)
 {
-    auto createdImage = allocator.allocateDeviceLocalImageAndTransfer(
+    auto createdImage = device.getAllocator().allocateDeviceLocalImageAndTransfer(
         image.data, 
         image.width, 
         image.height, 

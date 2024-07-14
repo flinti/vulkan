@@ -1,5 +1,5 @@
 #include "Application.h"
-#include "DeviceAllocator.h"
+#include "DescriptorSet.h"
 #include "GraphicsPipeline.h"
 #include "Mesh.h"
 #include "RenderObject.h"
@@ -28,6 +28,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vk_enum_string_helper.h>
@@ -98,39 +99,9 @@ void Application::initVulkan(bool validationLayers)
 		}
 	);
 
-	spdlog::info("creating command pools...");
-	createCommandPools();
-
-	spdlog::info("creating allocator...");
-	deviceAllocator = std::make_unique<DeviceAllocator>(
-		instance->getHandle(),
-		device->getPhysicalDeviceHandle(),
-		device->getDeviceHandle(),
-		transferCommandPool,
-		device->getGraphicsQueue()
-	);
-
-	resourceRepository = std::make_unique<ResourceRepository>();
-	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
-		{ 0.5f, 0.f, 0.f }, 
-		{ 0.f, 0.f, 0.5f },
-		{ 0.f, 0.f, 0.f }
-	));
-	resourceRepository->insertMesh("mesh/hexagon",
-		Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f })
-		);
-	resourceRepository->insertMesh("mesh/cube", Mesh::createUnitCube());
-	spdlog::info("Loaded resources:\n{}", resourceRepository->resourceTree(1));
-
 	createRenderPassAndSwapChain();
 
-	spdlog::info("creating pipeline...");
-	graphicsPipeline = std::make_unique<GraphicsPipeline>(
-		device->getDeviceHandle(), 
-		*renderPass,
-		resourceRepository->getVertexShader("shader/shader.vert"),
-		resourceRepository->getFragmentShader("shader/shader.frag")
-	);
+	loadResources();
 	
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
@@ -232,8 +203,7 @@ void Application::createSwapChainAndFramebuffers(const SwapChainSupportDetails &
 		static_cast<uint32_t>(hgt)
 	);
 	depthImage = std::make_unique<DepthImage>(
-		*deviceAllocator, 
-		device->getDeviceHandle(), 
+		*device, 
 		static_cast<uint32_t>(wdt), 
 		static_cast<uint32_t>(hgt)
 	);
@@ -255,18 +225,35 @@ void Application::recreateSwapChain()
     createSwapChainAndFramebuffers(swapChainSupportDetails, chosenSurfaceFormat);
 }
 
-void Application::createCommandPools()
+void Application::loadResources()
 {
-	VkCommandPoolCreateInfo poolInfo{};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	poolInfo.queueFamilyIndex = device->getQueueFamilyIndices().graphics.value();
+	spdlog::info("creating resource repository and loading resources...");
+	resourceRepository = std::make_unique<ResourceRepository>();
+	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
+		{ 0.5f, 0.f, 0.f }, 
+		{ 0.f, 0.f, 0.5f },
+		{ 0.f, 0.f, 0.f }
+	));
+	resourceRepository->insertMesh("mesh/hexagon",
+		Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f })
+		);
+	resourceRepository->insertMesh("mesh/cube", Mesh::createUnitCube());
+	spdlog::info("loaded resources:\n{}", resourceRepository->resourceTree(1));
 
-	VK_ASSERT(vkCreateCommandPool(
-		device->getDeviceHandle(), 
-		&poolInfo, 
-		nullptr, 
-		&transferCommandPool
+	spdlog::info("creating materials...");
+	addMaterial(std::make_unique<Material>(
+		*device,
+		resourceRepository->getVertexShader("shader/shader.vert"),
+		resourceRepository->getFragmentShader("shader/shader.frag"),
+		resourceRepository->getImage("image/bird.png"),
+		0
+	));
+	addMaterial(std::make_unique<Material>(
+		*device,
+		resourceRepository->getVertexShader("shader/shader.vert"),
+		resourceRepository->getFragmentShader("shader/shader.frag"),
+		resourceRepository->getImage("image/flower.png"),
+		1
 	));
 }
 
@@ -274,43 +261,38 @@ void Application::createInitialObjects()
 {
 	spdlog::info("creating initial objects...");
 
-	materials.emplace_back(
-		*deviceAllocator,
-		device->getDeviceHandle(),
-		resourceRepository->getImage("image/bird.png")
-	);
-
 	const Mesh &cube = resourceRepository->getMesh("mesh/cube");
 
 	float s = 1.f;
 	std::string namePrefix = "";
 	for (unsigned i = 0; i < 2; ++i) {
-		RenderObject &m = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"x cube");
+		RenderObject &m = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"x cube");
 		m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)));
-		RenderObject &m2 = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"y cube");
+		RenderObject &m2 = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"y cube");
 		m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)));
-		RenderObject &m3 = renderObjects.emplace_back(*deviceAllocator, cube, materials[0], namePrefix+"z cube");
+		RenderObject &m3 = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"z cube");
 		m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)));
 		s *= -1.f;
 		namePrefix = "-";
 	}
-	renderObjects.emplace_back(*deviceAllocator, cube, materials[0], "mid cube");
+	renderObjects.emplace_back(*device, cube, *materials[1], "mid cube");
+}
 
-	std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
-	imageBindingInfos[0] = VkDescriptorImageInfo{
-		.sampler = materials[0].getSamplerHandle(),
-		.imageView = materials[0].getImageViewHandle(),
-		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	};
-
-	for (auto &frame : frames) {
-		frame.requestDescriptorSet(
-			graphicsPipeline->getDescriptorSetLayout(), 
+void Application::updateDescriptors(Frame &frame)
+{
+	// we need to make sure all descriptor sets needed for all the graphics pipelines have been created
+	// and updated at least once
+	// TODO: improve, do not do all of this every frame
+	for (auto &pipelineIter : graphicsPipelines) {
+		GraphicsPipeline &pipeline = *pipelineIter.second;
+		frame.getDescriptorSet(
+			0, 
+			pipeline.getDescriptorSetLayout(), 
 			{},
-			imageBindingInfos
+			pipeline.getMaterial().getDescriptorImageInfos()
 		);
-		frame.updateDescriptorSets();
 	}
+	frame.updateDescriptorSets(0);
 }
 
 void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame)
@@ -344,50 +326,60 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	renderPassInfo.pClearValues = clearValues.data();
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	graphicsPipeline->bind(commandBuffer);
-
-	VkViewport viewport{};
-	viewport.x = 0.f;
-	viewport.y = 0.f;
-	viewport.width = vpWdt;
-	viewport.height = vpHgt;
-	viewport.minDepth = 0.f;
-	viewport.maxDepth = 1.f;
-	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-	VkRect2D scissor{};
-	scissor.offset = {0, 0};
-	scissor.extent = swapChainExtent;
-	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-	float angle = 0.33f * secondsRunning * glm::radians(90.0f);
-	glm::mat4 m = glm::rotate(
-		glm::mat4(1.0f), 
-		angle, 
-		glm::vec3(0.0f, 0.5f, 0.5f)
-	);
-	glm::mat4 v = glm::lookAt(
-		glm::vec3(0.0f, 10.0f, 0.0f), 
-		glm::vec3(0.0f, 0.0f, 0.0f), 
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	glm::mat4 p = glm::perspective(
-		glm::radians(45.0f), 
-		vpWdt / vpHgt, 
-		0.1f, 
-		100.0f
-	);
-	p[1][1] *= -1.f;
-	pushConstants.time = glm::vec4(secondsRunning);
 
 	for (const auto &r : renderObjects) {
-		graphicsPipeline->bindDescriptorSet(commandBuffer, frame.getFirstDescriptorSet());
+		VkViewport viewport{};
+		viewport.x = 0.f;
+		viewport.y = 0.f;
+		viewport.width = vpWdt;
+		viewport.height = vpHgt;
+		viewport.minDepth = 0.f;
+		viewport.maxDepth = 1.f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissor{};
+		scissor.offset = {0, 0};
+		scissor.extent = swapChainExtent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		float angle = 0.33f * secondsRunning * glm::radians(90.0f);
+		glm::mat4 m = glm::rotate(
+			glm::mat4(1.0f), 
+			angle, 
+			glm::vec3(0.0f, 0.5f, 0.5f)
+		);
+		glm::mat4 v = glm::lookAt(
+			glm::vec3(0.0f, 10.0f, 0.0f), 
+			glm::vec3(0.0f, 0.0f, 0.0f), 
+			glm::vec3(0.0f, 0.0f, 1.0f)
+		);
+		glm::mat4 p = glm::perspective(
+			glm::radians(45.0f), 
+			vpWdt / vpHgt, 
+			0.1f, 
+			100.0f
+		);
+		p[1][1] *= -1.f;
+		pushConstants.time = glm::vec4(secondsRunning);
+
+		GraphicsPipeline &pipeline = *graphicsPipelines.at(r.getMaterial().getId());
+		pipeline.bind(commandBuffer);
+
+		const DescriptorSet &set = frame.getDescriptorSet(
+			0,
+			pipeline.getDescriptorSetLayout(), 
+			{},
+			r.getMaterial().getDescriptorImageInfos()
+		);
+		pipeline.bindDescriptorSet(commandBuffer, set);
+
 		pushConstants.transform = p * v * m * r.getTransform();
-		graphicsPipeline->pushConstants(
+		pipeline.pushConstants(
 			commandBuffer, 
 			static_cast<void *>(&pushConstants), 
 			sizeof(pushConstants)
 		);
+		
 		r.enqueueDrawCommands(commandBuffer);
 	}
 
@@ -404,6 +396,7 @@ void Application::draw()
 	VkCommandBuffer commandBuffer = frames[currentFrameIndex].getCommandBuffer();
 	VkQueue graphicsQueue = device->getGraphicsQueue();
     VkQueue presentQueue = device->getPresentQueue();
+	Frame &frame = frames[currentFrameIndex];
 
 	vkWaitForFences(
 		device->getDeviceHandle(), 
@@ -428,13 +421,15 @@ void Application::draw()
 		spdlog::error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
 	}
 
+	updateDescriptors(frame);
+
 	vkResetFences(device->getDeviceHandle(), 1, &fence);
 
 	result = vkResetCommandBuffer(commandBuffer, 0);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkResetCommandBuffer failed with code {}", (int32_t) result));
 	}
-	recordCommandBuffer(commandBuffer, imageIndex, frames[currentFrameIndex]);
+	recordCommandBuffer(commandBuffer, imageIndex, frame);
 
 	VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	VkSubmitInfo submitInfo{};
@@ -535,20 +530,39 @@ void Application::cleanup()
 	spdlog::info("cleaning up...");
 
 	renderObjects.clear();
-	materials.clear();
 	frames.clear();
-	graphicsPipeline.reset();
+	for (auto &i : graphicsPipelines) {
+		i.second.reset();
+	}
+	for (auto &i : materials) {
+		i.second.reset();
+	}
 	depthImage.reset();
     cleanupSwapChainAndFramebuffers();
 	renderPass.reset();
 	resourceRepository.reset();
-	deviceAllocator.reset();
-	vkDestroyCommandPool(device->getDeviceHandle(), transferCommandPool, nullptr);
 	device.reset();
 	vkDestroySurfaceKHR(instance->getHandle(), surface, nullptr);
 	instance.reset();
 	glfwDestroyWindow(window);
 	glfwTerminate();
+}
+
+void Application::addMaterial(std::unique_ptr<Material> material)
+{
+	if (materials.find(material->getId()) != materials.end()) {
+		throw std::runtime_error(fmt::format("Material with ID {} already exists", material->getId()));
+	}
+	Material &inserted = *materials.insert(
+		std::make_pair<uint32_t, std::unique_ptr<Material>>(material->getId(), std::move(material))
+	).first->second;
+	graphicsPipelines.insert(std::make_pair(
+		inserted.getId(),
+		std::make_unique<GraphicsPipeline>(
+			device->getDeviceHandle(),
+			*renderPass,
+			inserted
+	)));
 }
 
 void Application::framebufferResized(GLFWwindow* window, int width, int height)

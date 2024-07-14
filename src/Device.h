@@ -1,14 +1,18 @@
 #ifndef DEVICE_H_
 #define DEVICE_H_
 
+#include "DeviceAllocator.h"
 #include "SwapChain.h"
+#include "VulkanObjectCache.h"
 
+#include <memory>
 #include <spdlog/logger.h>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan_core.h>
 #include <optional>
 
 class Instance;
+class DeviceAllocator;
 
 struct QueueFamilyIndices
 {
@@ -29,7 +33,12 @@ public:
         VkSurfaceKHR surface, 
         std::vector<const char *> extensionsToEnable = {}
     );
+    Device(const Device &) = delete;
+    Device(Device &&) = delete;
     ~Device();
+
+    VulkanObjectCache &getObjectCache();
+    DeviceAllocator &getAllocator();
 
     VkInstance getInstanceHandle();
     VkPhysicalDevice getPhysicalDeviceHandle();
@@ -42,7 +51,7 @@ public:
 private:
     void createInstance();
     bool checkValidationLayersSupported();
-    void findAndChooseDevice();
+    VkPhysicalDevice chooseSuitablePhysicalDevice();
     bool isDeviceSuitable(
         VkPhysicalDevice device, 
         const QueueFamilyIndices &queueFamilyIndices, 
@@ -52,17 +61,20 @@ private:
     );
     bool checkDeviceRequiredExtensionsSupport(VkPhysicalDevice device);
     QueueFamilyIndices findNeededQueueFamilyIndices(VkPhysicalDevice device);
-    void createLogicalDevice();
+    VkDevice createLogicalDevice();
+    VkCommandPool createTransferCommandPool();
 
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice device = VK_NULL_HANDLE;
-    QueueFamilyIndices selectedQueueFamilyIndices{};
+    Instance &instance;
+    VkSurfaceKHR surface;
+    std::vector<const char *> extensionsToEnable;
+    QueueFamilyIndices selectedQueueFamilyIndices;
     VkQueue graphicsQueue;
     VkQueue presentQueue;
-    std::vector<const char *> extensionsToEnable;
-
-    VkSurfaceKHR surface;
-    Instance &instance;
+    VkPhysicalDevice physicalDevice;
+    VkDevice device;
+    VkCommandPool transferCommandPool;
+    std::unique_ptr<DeviceAllocator> allocator;
+    std::unique_ptr<VulkanObjectCache> objectCache;
 };
 
 #endif
