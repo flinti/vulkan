@@ -3,16 +3,22 @@
 
 #include "DescriptorSet.h"
 #include "DescriptorPool.h"
+#include "Material.h"
+#include "MappedBuffer.h"
 
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+class Device;
+
 class Frame
 {
 public:
-    Frame(VkDevice device, uint32_t renderQueueFamilyIndex);
+    Frame(Device &device, uint32_t renderQueueFamilyIndex);
     Frame(const Frame &) = delete;
     Frame(Frame &&);
     ~Frame();
@@ -29,19 +35,23 @@ public:
         const std::map<uint32_t, VkDescriptorImageInfo> &imageBindingInfos
     );
     void updateDescriptorSets(uint32_t concurrencyIndex);
+    void updateGlobalUniformBuffer(const GlobalUniformData &data);
+    GlobalUniformData &getGlobalUniformData();
+    VkBuffer getGlobalUniformBufferHandle();
 private:
-    DescriptorPool &requestDescriptorPool(const DescriptorSetLayout &layout);
+    MappedBuffer createGlobalUniformBuffer();
+
+    Device &device;
 
     VkCommandPool commandPool = VK_NULL_HANDLE;
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
     VkFence fence = VK_NULL_HANDLE;
     VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
     VkSemaphore renderFinishedSemaphore = VK_NULL_HANDLE;
+    MappedBuffer globalUniformBuffer;
 
     std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorPool>>> descriptorPools;
     std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorSet>>> descriptorSets;
-
-    VkDevice device;
 };
 
 #endif

@@ -17,7 +17,7 @@ class Device;
 
 struct PushConstants {
     glm::mat4 transform;
-    glm::vec4 time;
+    glm::mat4 normalTransform;
 };
 
 class GraphicsPipeline

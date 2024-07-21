@@ -35,6 +35,24 @@ DeviceAllocator::~DeviceAllocator()
     vmaDestroyAllocator(allocator);
 }
 
+std::pair<VkBuffer, VmaAllocation> DeviceAllocator::allocateHostVisibleCoherentAndMap(
+    size_t size, 
+    VkBufferUsageFlags usage,
+    void **mappedData
+) {
+    VmaAllocationInfo allocInfo{};
+    auto buf = allocateBuffer(
+        size,
+        usage,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        &allocInfo
+    );
+    *mappedData = allocInfo.pMappedData;
+
+    return buf;
+}
+
 std::pair<VkBuffer, VmaAllocation> DeviceAllocator::allocateDeviceLocalBufferAndTransfer(
     void *data,
     size_t size, 
@@ -189,28 +207,29 @@ std::pair<VkBuffer, VmaAllocation> DeviceAllocator::allocateBuffer(
     size_t size, 
     VkBufferUsageFlags usage, 
     VkMemoryPropertyFlags properties,
-    VmaAllocationCreateFlags allocFlags
+    VmaAllocationCreateFlags allocFlags,
+    VmaAllocationInfo *allocInfo
 ) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage;
+    bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     
-    VmaAllocationCreateInfo allocInfo{};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocInfo.requiredFlags = properties;
-    allocInfo.flags = allocFlags;
+    VmaAllocationCreateInfo allocCreateInfo{};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocCreateInfo.requiredFlags = properties;
+    allocCreateInfo.flags = allocFlags;
     
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
     VK_ASSERT(vmaCreateBuffer(
         allocator, 
         &bufferInfo, 
-        &allocInfo, 
+        &allocCreateInfo, 
         &buffer, 
         &allocation, 
-        nullptr)
+        allocInfo)
     );
 
     return std::make_pair(buffer, allocation);

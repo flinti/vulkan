@@ -1,6 +1,7 @@
 #ifndef _APPLICATION_H_
 #define _APPLICATION_H_
 
+#include "Camera.h"
 #include "GraphicsPipeline.h"
 #include "RenderObject.h"
 #include "ResourceRepository.h"
@@ -58,9 +59,11 @@ private:
     void loadResources();
     void createInitialObjects();
     void updateDescriptors(Frame &frame);
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer, Frame &frame);
     void mainLoop();
     void updateInfoDisplay();
+    void updateCamera();
+    void handleInput();
     void draw();
     void cleanupSwapChainAndFramebuffers();
     void cleanup();
@@ -72,7 +75,9 @@ private:
         const VkDebugUtilsMessengerCallbackDataEXT*, 
         void *
     );
-    static void framebufferResized(GLFWwindow* window, int width, int height);
+    static void onFramebufferResized(GLFWwindow* window, int width, int height);
+    static void onScrolled(GLFWwindow* window, double xoffset, double yoffset);
+    static void onKeyEvent(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     uint32_t concurrentFrames;
     GLFWwindow *window = nullptr;
@@ -83,6 +88,10 @@ private:
     float frameRate = 0.f;
     float secondsRunning = 0.f;
     uint64_t frameCounter = 0;
+    double scrollY = 0.0;
+    double lastMouseX = 0.0;
+    double lastMouseY = 0.0;
+    Camera camera;
     std::unique_ptr<Instance> instance;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     std::unique_ptr<Device> device;

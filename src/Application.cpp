@@ -10,17 +10,21 @@
 #include <GLFW/glfw3.h>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <fmt/core.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <glm/detail/qualifier.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <glm/fwd.hpp>
+#include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
+#include <glm/matrix.hpp>
 #include <glm/trigonometric.hpp>
 #include <spdlog/common.h>
 #include <spdlog/spdlog.h>
@@ -72,7 +76,9 @@ void Application::initWindow()
 
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
 	glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResized);
+    glfwSetFramebufferSizeCallback(window, onFramebufferResized);
+	glfwSetScrollCallback(window, onScrolled);
+	glfwSetKeyCallback(window, onKeyEvent);
 }
 
 void Application::initVulkan(bool validationLayers)
@@ -106,7 +112,7 @@ void Application::initVulkan(bool validationLayers)
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
 		frames.emplace_back(
-			device->getDeviceHandle(), 
+			*device, 
 			device->getQueueFamilyIndices().graphics.value()
 		);
 	}
@@ -230,9 +236,9 @@ void Application::loadResources()
 	spdlog::info("creating resource repository and loading resources...");
 	resourceRepository = std::make_unique<ResourceRepository>();
 	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
-		{ 0.5f, 0.f, 0.f }, 
-		{ 0.f, 0.f, 0.5f },
-		{ 0.f, 0.f, 0.f }
+		{ 6.f, 0.f, 0.f }, 
+		{ 0.f, 0.f, 6.f },
+		{ -3.f, 0.f, -3.f }
 	));
 	resourceRepository->insertMesh("mesh/hexagon",
 		Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f })
@@ -242,18 +248,18 @@ void Application::loadResources()
 
 	spdlog::info("creating materials...");
 	addMaterial(std::make_unique<Material>(
+		0,
 		*device,
 		resourceRepository->getVertexShader("shader/shader.vert"),
 		resourceRepository->getFragmentShader("shader/shader.frag"),
-		resourceRepository->getImage("image/bird.png"),
-		0
+		resourceRepository->getImage("image/bird.png")
 	));
 	addMaterial(std::make_unique<Material>(
+		1,
 		*device,
 		resourceRepository->getVertexShader("shader/shader.vert"),
 		resourceRepository->getFragmentShader("shader/shader.frag"),
-		resourceRepository->getImage("image/flower.png"),
-		1
+		resourceRepository->getImage("image/flower.png")
 	));
 }
 
@@ -262,6 +268,7 @@ void Application::createInitialObjects()
 	spdlog::info("creating initial objects...");
 
 	const Mesh &cube = resourceRepository->getMesh("mesh/cube");
+	const Mesh &plane = resourceRepository->getMesh("mesh/plane");
 
 	float s = 1.f;
 	std::string namePrefix = "";
@@ -276,6 +283,10 @@ void Application::createInitialObjects()
 		namePrefix = "-";
 	}
 	renderObjects.emplace_back(*device, cube, *materials[1], "mid cube");
+	renderObjects.emplace_back(*device, cube, *materials[1], "sun")
+		.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(5.f, 5.f, 3.f)));
+
+	camera.lookAt(glm::vec3(0.f), 10.f, glm::quarter_pi<float>(), glm::quarter_pi<float>());
 }
 
 void Application::updateDescriptors(Frame &frame)
@@ -283,24 +294,35 @@ void Application::updateDescriptors(Frame &frame)
 	// we need to make sure all descriptor sets needed for all the graphics pipelines have been created
 	// and updated at least once
 	// TODO: improve, do not do all of this every frame
+
+	GlobalUniformData uniformData{};
+	uniformData.viewProj = camera.getTransform();
+	uniformData.viewPos = camera.getEye();
+	uniformData.time = glm::vec4(static_cast<float>(secondsRunning));
+	uniformData.lightPosition = glm::vec3(5.f, 5.f, 3.f);
+	frame.updateGlobalUniformBuffer(uniformData);
+
+	std::map<uint32_t, VkDescriptorBufferInfo> bufferInfos;
+	bufferInfos[0] = VkDescriptorBufferInfo{
+		.buffer = frame.getGlobalUniformBufferHandle(),
+		.offset = 0,
+		.range = VK_WHOLE_SIZE
+	};
+
 	for (auto &pipelineIter : graphicsPipelines) {
 		GraphicsPipeline &pipeline = *pipelineIter.second;
 		frame.getDescriptorSet(
 			0, 
 			pipeline.getDescriptorSetLayout(), 
-			{},
+			bufferInfos,
 			pipeline.getMaterial().getDescriptorImageInfos()
 		);
 	}
 	frame.updateDescriptorSets(0);
 }
 
-void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, Frame &frame)
+void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer, Frame &frame)
 {
-	if (imageIndex >= swapChain->getImageCount()) {
-		throw std::invalid_argument("imageIndex is out of bounds");
-	}
-
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = 0;
@@ -319,7 +341,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = renderPass->getHandle();
-	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+	renderPassInfo.framebuffer = framebuffer;
 	renderPassInfo.renderArea.offset = {0, 0};
 	renderPassInfo.renderArea.extent = swapChainExtent;
 	renderPassInfo.clearValueCount = clearValues.size();
@@ -327,53 +349,40 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 
 	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+	VkViewport viewport{};
+	viewport.x = 0.f;
+	viewport.y = 0.f;
+	viewport.width = vpWdt;
+	viewport.height = vpHgt;
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.offset = {0, 0};
+	scissor.extent = swapChainExtent;
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
 	for (const auto &r : renderObjects) {
-		VkViewport viewport{};
-		viewport.x = 0.f;
-		viewport.y = 0.f;
-		viewport.width = vpWdt;
-		viewport.height = vpHgt;
-		viewport.minDepth = 0.f;
-		viewport.maxDepth = 1.f;
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-		VkRect2D scissor{};
-		scissor.offset = {0, 0};
-		scissor.extent = swapChainExtent;
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-		float angle = 0.33f * secondsRunning * glm::radians(90.0f);
-		glm::mat4 m = glm::rotate(
-			glm::mat4(1.0f), 
-			angle, 
-			glm::vec3(0.0f, 0.5f, 0.5f)
-		);
-		glm::mat4 v = glm::lookAt(
-			glm::vec3(0.0f, 10.0f, 0.0f), 
-			glm::vec3(0.0f, 0.0f, 0.0f), 
-			glm::vec3(0.0f, 0.0f, 1.0f)
-		);
-		glm::mat4 p = glm::perspective(
-			glm::radians(45.0f), 
-			vpWdt / vpHgt, 
-			0.1f, 
-			100.0f
-		);
-		p[1][1] *= -1.f;
-		pushConstants.time = glm::vec4(secondsRunning);
-
 		GraphicsPipeline &pipeline = *graphicsPipelines.at(r.getMaterial().getId());
 		pipeline.bind(commandBuffer);
 
+		std::map<uint32_t, VkDescriptorBufferInfo> bufferInfos;
+		bufferInfos[0] = VkDescriptorBufferInfo{
+			.buffer = frame.getGlobalUniformBufferHandle(),
+			.offset = 0,
+			.range = VK_WHOLE_SIZE
+		};
 		const DescriptorSet &set = frame.getDescriptorSet(
 			0,
 			pipeline.getDescriptorSetLayout(), 
-			{},
+			bufferInfos,
 			r.getMaterial().getDescriptorImageInfos()
 		);
 		pipeline.bindDescriptorSet(commandBuffer, set);
 
-		pushConstants.transform = p * v * m * r.getTransform();
+		pushConstants.transform = r.getTransform();
+		pushConstants.normalTransform = glm::transpose(glm::inverse(pushConstants.transform));
 		pipeline.pushConstants(
 			commandBuffer, 
 			static_cast<void *>(&pushConstants), 
@@ -386,6 +395,50 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 	vkCmdEndRenderPass(commandBuffer);
 
 	VK_ASSERT(vkEndCommandBuffer(commandBuffer));
+}
+
+void Application::updateCamera()
+{
+	VkExtent2D swapChainExtent = swapChain->getExtent();
+	float vpWdt = static_cast<float>(swapChainExtent.width);
+	float vpHgt = static_cast<float>(swapChainExtent.height);
+	camera.setAspect(vpWdt / vpHgt);
+}
+
+void Application::handleInput()
+{
+	float rotationSensitivity = 0.05f;
+	float radialSensitivity = 0.5f;
+	float rotationSpeed = rotationSensitivity / frameRate;
+	double mouseX;
+	double mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+
+	if (scrollY != 0.0) {
+		camera.addRadius(- radialSensitivity * scrollY);
+		scrollY = 0.0;
+	}
+
+	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+		camera.drag(-(mouseX - lastMouseX) * rotationSensitivity, -(mouseY - lastMouseY) * rotationSensitivity);
+	}
+	else {
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			camera.drag(0.f, rotationSensitivity);
+		}
+		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camera.drag(0.f, -rotationSensitivity);
+		}
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			camera.drag(-rotationSensitivity, 0.f);
+		}
+		else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camera.drag(rotationSensitivity, 0.f);
+		}
+	}
+
+	lastMouseX = mouseX;
+	lastMouseY = mouseY;
 }
 
 void Application::draw()
@@ -406,6 +459,9 @@ void Application::draw()
 		UINT64_MAX
 	);
 
+	updateCamera();
+	updateDescriptors(frame);
+
 	uint32_t imageIndex;
     VkResult result = swapChain->acquireNextImage(
 		&imageIndex, 
@@ -421,15 +477,13 @@ void Application::draw()
 		spdlog::error("vkAcquireNextImageKHR failed with code {}", (int32_t) result);
 	}
 
-	updateDescriptors(frame);
-
 	vkResetFences(device->getDeviceHandle(), 1, &fence);
 
 	result = vkResetCommandBuffer(commandBuffer, 0);
 	if (result != VK_SUCCESS) {
 		throw std::runtime_error(fmt::format("vkResetCommandBuffer failed with code {}", (int32_t) result));
 	}
-	recordCommandBuffer(commandBuffer, imageIndex, frame);
+	recordCommandBuffer(commandBuffer, swapChainFramebuffers[imageIndex], frame);
 
 	VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	VkSubmitInfo submitInfo{};
@@ -475,6 +529,7 @@ void Application::mainLoop()
 		).count();
 
 		if (!paused) {
+			handleInput();
 			draw();
 		}
 
@@ -503,6 +558,7 @@ void Application::mainLoop()
 		updateInfoDisplay();
 
 		if (exited) {
+			spdlog::info("application exiting gracefully");
 			break;
 		}
 	}
@@ -514,6 +570,9 @@ void Application::updateInfoDisplay()
 {
 	std::stringstream s;
 	s << "Demo " << std::setprecision(3) << frameRate << " fps";
+	if (paused) {
+		s << " paused";
+	}
 	glfwSetWindowTitle(window, s.str().c_str());
 }
 
@@ -565,7 +624,7 @@ void Application::addMaterial(std::unique_ptr<Material> material)
 	)));
 }
 
-void Application::framebufferResized(GLFWwindow* window, int width, int height)
+void Application::onFramebufferResized(GLFWwindow* window, int width, int height)
 {
 	auto *myThis = static_cast<Application *>(glfwGetWindowUserPointer(window));
 	if (width <= 0 || height <= 0) {
@@ -575,4 +634,19 @@ void Application::framebufferResized(GLFWwindow* window, int width, int height)
 		myThis->paused = false;
 	}
 	myThis->needsSwapChainRecreation = true;
+}
+
+void Application::onScrolled(GLFWwindow* window, double xoffset, double yoffset)
+{
+	auto *myThis = static_cast<Application *>(glfwGetWindowUserPointer(window));
+	myThis->scrollY = yoffset;
+}
+
+
+void Application::onKeyEvent(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	auto *myThis = static_cast<Application *>(glfwGetWindowUserPointer(window));
+	if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+		myThis->paused = !myThis->paused;
+	}
 }

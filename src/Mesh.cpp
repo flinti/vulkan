@@ -2,8 +2,8 @@
 #include "Utility.h"
 #include <glm/detail/qualifier.hpp>
 #include <glm/fwd.hpp>
+#include <glm/geometric.hpp>
 #include <spdlog/spdlog.h>
-#include <sstream>
 #include <vulkan/vulkan_core.h>
 
 
@@ -56,6 +56,7 @@ Mesh Mesh::createRegularPolygon(float r, uint32_t edges, glm::vec3 offset)
 
 		Vertex v{
 			.position = { x + offset.x, offset.y, z + offset.z },
+			.normal = { 0.f, 1.f, 0.f },
 			.color = Utility::colorFromHsl(360.f / edges * i, 1.f, 0.5f),
 			.uv = { 0.f, 0.f },
 		};
@@ -66,6 +67,7 @@ Mesh Mesh::createRegularPolygon(float r, uint32_t edges, glm::vec3 offset)
 	}
 	mesh.vertices.emplace_back(Vertex{
 		.position = offset, 
+		.normal = { 0.f, 1.f, 0.f },
 		.color = { 0.f, 0.f, 0.f },
 		.uv = { 0.f, 0.f },
 	});
@@ -76,24 +78,29 @@ Mesh Mesh::createRegularPolygon(float r, uint32_t edges, glm::vec3 offset)
 Mesh Mesh::createPlane(glm::vec3 a, glm::vec3 b, glm::vec3 offset)
 {
 	Mesh mesh;
+	glm::vec3 normal = glm::normalize(glm::cross(a, b));
 	mesh.vertices = {
 		{
-			.position = offset, 
+			.position = offset,
+			.normal = normal,
 			.color = { 1.f, 0.f, 0.f },
 			.uv = { 0.f, 0.f },
 		},
 		{
 			.position = offset + a, 
+			.normal = normal,
 			.color = { 0.f, 1.f, 0.f },
 			.uv = { 1.f, 0.f },
 		},
 		{
 			.position = offset + a + b, 
+			.normal = normal,
 			.color = { 0.f, 0.f, 1.f },
 			.uv = { 1.f, 1.f },
 		},
 		{
 			.position = offset + b, 
+			.normal = normal,
 			.color = { 1.f, 1.f, 1.f },
 			.uv = { 0.f, 1.f },
 		},
@@ -106,19 +113,23 @@ Mesh Mesh::createPlane(glm::vec3 a, glm::vec3 b, glm::vec3 offset)
 Mesh Mesh::createTriangle(glm::vec3 a, glm::vec3 b, glm::vec3 offset)
 {
 	Mesh mesh;
+	glm::vec3 normal = glm::normalize(glm::cross(a, b));
 	mesh.vertices = {
 		{
-			.position = offset, 
+			.position = offset,
+			.normal = normal,
 			.color = { 1.f, 0.f, 0.f },
 			.uv = { 0.f, 0.f },
 		},
 		{
-			.position = offset + a, 
+			.position = offset + a,
+			.normal = normal,
 			.color = { 0.f, 1.f, 0.f },
 			.uv = { 1.f, 0.f },
 		},
 		{
-			.position = offset + a + b, 
+			.position = offset + a + b,
+			.normal = normal,
 			.color = { 0.f, 0.f, 1.f },
 			.uv = { 1.f, 1.f },
 		},
@@ -132,35 +143,35 @@ Mesh Mesh::createUnitCube()
 {
 	Mesh mesh;
 	mesh.vertices = {
-        { .position = { -0.5f, -0.5f, -0.5f },  .uv = { 0.0f, 0.0f } },
-        { .position = { 0.5f, -0.5f, -0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { 0.5f,  0.5f, -0.5f },  .uv = { 1.0f, 1.0f } },
-        { .position = { -0.5f,  0.5f, -0.5f },  .uv = { 0.0f, 1.0f } },
+        { .position = { -0.5f, -0.5f, -0.5f },  .normal = {0.f, 0.f, -1.f}, .uv = { 0.0f, 0.0f } },
+        { .position = { 0.5f, -0.5f, -0.5f }, .normal = {0.f, 0.f, -1.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { 0.5f,  0.5f, -0.5f }, .normal = {0.f, 0.f, -1.f}, .uv = { 1.0f, 1.0f } },
+        { .position = { -0.5f,  0.5f, -0.5f }, .normal = {0.f, 0.f, -1.f}, .uv = { 0.0f, 1.0f } },
 
-		{ .position = {  0.5f,  0.5f,  0.5f },  .uv = { 1.0f, 1.0f } },
-        { .position = { 0.5f, -0.5f,  0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { -0.5f, -0.5f,  0.5f },  .uv = { 0.0f, 0.0f } },
-        { .position = { -0.5f,  0.5f,  0.5f },  .uv = { 0.0f, 1.0f } },
+		{ .position = {  0.5f,  0.5f,  0.5f }, .normal = {0.f, 0.f, 1.f}, .uv = { 1.0f, 1.0f } },
+        { .position = { 0.5f, -0.5f,  0.5f }, .normal = {0.f, 0.f, 1.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { -0.5f, -0.5f,  0.5f }, .normal = {0.f, 0.f, 1.f}, .uv = { 0.0f, 0.0f } },
+        { .position = { -0.5f,  0.5f,  0.5f }, .normal = {0.f, 0.f, 1.f}, .uv = { 0.0f, 1.0f } },
 
-        { .position = { -0.5f, -0.5f, -0.5f },  .uv = { 0.0f, 1.0f } },
-        { .position = { -0.5f,  0.5f, -0.5f },  .uv = { 1.0f, 1.0f } },
-		{ .position = { -0.5f,  0.5f,  0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { -0.5f, -0.5f,  0.5f },  .uv = { 0.0f, 0.0f } },
+        { .position = { -0.5f, -0.5f, -0.5f }, .normal = {-1.f, 0.f, 0.f}, .uv = { 0.0f, 1.0f } },
+        { .position = { -0.5f,  0.5f, -0.5f }, .normal = {-1.f, 0.f, 0.f}, .uv = { 1.0f, 1.0f } },
+		{ .position = { -0.5f,  0.5f,  0.5f }, .normal = {-1.f, 0.f, 0.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { -0.5f, -0.5f,  0.5f }, .normal = {-1.f, 0.f, 0.f}, .uv = { 0.0f, 0.0f } },
 
-        { .position = { 0.5f,  0.5f,  0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { 0.5f,  0.5f, -0.5f },  .uv = { 1.0f, 1.0f } },
-        { .position = { 0.5f, -0.5f, -0.5f },  .uv = { 0.0f, 1.0f } },
-        { .position = { 0.5f, -0.5f,  0.5f },  .uv = { 0.0f, 0.0f } },
+        { .position = { 0.5f,  0.5f,  0.5f }, .normal = {1.f, 0.f, 0.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { 0.5f,  0.5f, -0.5f }, .normal = {1.f, 0.f, 0.f}, .uv = { 1.0f, 1.0f } },
+        { .position = { 0.5f, -0.5f, -0.5f }, .normal = {1.f, 0.f, 0.f}, .uv = { 0.0f, 1.0f } },
+        { .position = { 0.5f, -0.5f,  0.5f }, .normal = {1.f, 0.f, 0.f}, .uv = { 0.0f, 0.0f } },
 
-        { .position = { 0.5f, -0.5f,  0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { 0.5f, -0.5f, -0.5f },  .uv = { 1.0f, 1.0f } },
-        { .position = { -0.5f, -0.5f, -0.5f },  .uv = { 0.0f, 1.0f } },
-        { .position = { -0.5f, -0.5f,  0.5f },  .uv = { 0.0f, 0.0f } },
+        { .position = { 0.5f, -0.5f,  0.5f }, .normal = {0.f, -1.f, 0.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { 0.5f, -0.5f, -0.5f }, .normal = {0.f, -1.f, 0.f}, .uv = { 1.0f, 1.0f } },
+        { .position = { -0.5f, -0.5f, -0.5f }, .normal = {0.f, -1.f, 0.f}, .uv = { 0.0f, 1.0f } },
+        { .position = { -0.5f, -0.5f,  0.5f }, .normal = {0.f, -1.f, 0.f}, .uv = { 0.0f, 0.0f } },
 
-        { .position = { -0.5f,  0.5f, -0.5f },  .uv = { 0.0f, 1.0f } },
-        { .position = { 0.5f,  0.5f, -0.5f },  .uv = { 1.0f, 1.0f } },
-        { .position = { 0.5f,  0.5f,  0.5f },  .uv = { 1.0f, 0.0f } },
-        { .position = { -0.5f,  0.5f,  0.5f },  .uv = { 0.0f, 0.0f } },
+        { .position = { -0.5f,  0.5f, -0.5f }, .normal = {0.f, 1.f, 0.f}, .uv = { 0.0f, 1.0f } },
+        { .position = { 0.5f,  0.5f, -0.5f }, .normal = {0.f, 1.f, 0.f}, .uv = { 1.0f, 1.0f } },
+        { .position = { 0.5f,  0.5f,  0.5f }, .normal = {0.f, 1.f, 0.f}, .uv = { 1.0f, 0.0f } },
+        { .position = { -0.5f,  0.5f,  0.5f }, .normal = {0.f, 1.f, 0.f}, .uv = { 0.0f, 0.0f } },
     };
 	mesh.indices = {
 		0, 1, 2, 2, 3, 0, 

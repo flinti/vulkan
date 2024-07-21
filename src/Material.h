@@ -15,15 +15,27 @@
 
 class Device;
 
+struct GlobalUniformData
+{
+    glm::mat4 viewProj;
+    glm::vec3 viewPos;
+    float pad1;
+    glm::vec4 time;
+    glm::vec3 lightPosition;
+    float pad2;
+    glm::vec3 lightColor;
+    float pad3;
+};
+
 class Material
 {
 public:
     Material(
+        uint32_t id,
         Device &device,
         const ShaderResource &vertexShader,
         const ShaderResource &fragmentShader,
         const ImageResource &imageResource,
-        uint32_t id,
         std::string name = ""
     );
     Material(const Material &) = delete;

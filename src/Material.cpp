@@ -10,11 +10,11 @@
 #include <vulkan/vulkan_core.h>
 
 Material::Material(
+    uint32_t id,
     Device &device,
     const ShaderResource &vertexShader,
     const ShaderResource &fragmentShader,
     const ImageResource &imageResource,
-    uint32_t id,
     std::string name
 )
     : id(id),
@@ -131,20 +131,28 @@ VkSampler Material::requestSampler()
 
 std::vector<VkDescriptorSetLayoutBinding> Material::createDescriptorSetLayoutBindings()
 {
+    VkDescriptorSetLayoutBinding bufferDescriptorSetLayoutBinding{};
+	bufferDescriptorSetLayoutBinding.binding = 0;
+	bufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	bufferDescriptorSetLayoutBinding.descriptorCount = 1;
+	bufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
     VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBinding{};
-	samplerDescriptorSetLayoutBinding.binding = 0;
+	samplerDescriptorSetLayoutBinding.binding = 1;
 	samplerDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerDescriptorSetLayoutBinding.descriptorCount = 1;
 	samplerDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	samplerDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	return std::vector<VkDescriptorSetLayoutBinding>{samplerDescriptorSetLayoutBinding};
+	return std::vector<VkDescriptorSetLayoutBinding>{
+        bufferDescriptorSetLayoutBinding, 
+        samplerDescriptorSetLayoutBinding
+    };
 }
 
 std::map<uint32_t, VkDescriptorImageInfo> Material::createDescriptorImageInfos()
 {
     std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
-	imageBindingInfos[0] = VkDescriptorImageInfo{
+	imageBindingInfos[1] = VkDescriptorImageInfo{
 		.sampler = sampler,
 		.imageView = imageView,
 		.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,

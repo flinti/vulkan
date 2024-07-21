@@ -22,6 +22,11 @@ public:
     );
     ~DeviceAllocator();
 
+    std::pair<VkBuffer, VmaAllocation> allocateHostVisibleCoherentAndMap(
+        size_t size, 
+        VkBufferUsageFlags usage,
+        void **mappedData
+    );
     std::pair<VkBuffer, VmaAllocation> allocateDeviceLocalBufferAndTransfer(
         void *data,
         size_t size, 
@@ -48,7 +53,8 @@ private:
         size_t size, 
         VkBufferUsageFlags usage, 
         VkMemoryPropertyFlags properties,
-        VmaAllocationCreateFlags allocFlags = 0
+        VmaAllocationCreateFlags allocFlags = 0,
+        VmaAllocationInfo *allocInfo = nullptr
     );
     std::pair<VkImage, VmaAllocation> allocateImageAsTransferDst(
         uint32_t width,

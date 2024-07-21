@@ -1,4 +1,5 @@
 #include "Frame.h"
+#include "Device.h"
 #include "DescriptorPool.h"
 #include "VkHash.h"
 #include "VkHelpers.h"
@@ -8,15 +9,21 @@
 #include <utility>
 #include <vulkan/vulkan_core.h>
 
-Frame::Frame(VkDevice device, uint32_t renderQueueFamilyIndex)
-    : device(device)
+Frame::Frame(Device &device, uint32_t renderQueueFamilyIndex)
+    : device(device),
+    globalUniformBuffer(createGlobalUniformBuffer())
 {
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	poolInfo.queueFamilyIndex = renderQueueFamilyIndex;
 
-	VK_ASSERT(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool));
+	VK_ASSERT(vkCreateCommandPool(
+        device.getDeviceHandle(), 
+        &poolInfo, 
+        nullptr, 
+        &commandPool)
+    );
 
     VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -24,7 +31,11 @@ Frame::Frame(VkDevice device, uint32_t renderQueueFamilyIndex)
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = 1;
 
-	VK_ASSERT(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
+	VK_ASSERT(vkAllocateCommandBuffers(
+        device.getDeviceHandle(), 
+        &allocInfo, 
+        &commandBuffer)
+    );
 
 	VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -32,9 +43,21 @@ Frame::Frame(VkDevice device, uint32_t renderQueueFamilyIndex)
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VK_ASSERT(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore));
-    VK_ASSERT(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore));
-    VK_ASSERT(vkCreateFence(device, &fenceInfo, nullptr, &fence));
+    VK_ASSERT(vkCreateSemaphore(
+        device.getDeviceHandle(), 
+        &semaphoreInfo, nullptr, 
+        &imageAvailableSemaphore)
+    );
+    VK_ASSERT(vkCreateSemaphore(
+        device.getDeviceHandle(), 
+        &semaphoreInfo, nullptr, 
+        &renderFinishedSemaphore)
+    );
+    VK_ASSERT(vkCreateFence(
+        device.getDeviceHandle(), 
+        &fenceInfo, 
+        nullptr, &fence)
+    );
 }
 
 Frame::Frame(Frame &&other)
@@ -43,6 +66,9 @@ Frame::Frame(Frame &&other)
     fence(other.fence),
     imageAvailableSemaphore(other.imageAvailableSemaphore),
     renderFinishedSemaphore(other.renderFinishedSemaphore),
+    globalUniformBuffer(std::move(other.globalUniformBuffer)),
+    descriptorPools(std::move(other.descriptorPools)),
+    descriptorSets(std::move(other.descriptorSets)),
     device(other.device)
 {
     other.commandPool = VK_NULL_HANDLE;
@@ -64,10 +90,10 @@ Frame::~Frame()
             i.second.reset();
         }
     }
-    vkDestroyFence(device, fence, nullptr);
-    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-    vkDestroyCommandPool(device, commandPool, nullptr);
+    vkDestroyFence(device.getDeviceHandle(), fence, nullptr);
+    vkDestroySemaphore(device.getDeviceHandle(), renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(device.getDeviceHandle(), imageAvailableSemaphore, nullptr);
+    vkDestroyCommandPool(device.getDeviceHandle(), commandPool, nullptr);
 }
 
 const VkCommandBuffer &Frame::getCommandBuffer() const
@@ -103,7 +129,7 @@ DescriptorPool &Frame::getDescriptorPool(uint32_t concurrencyIndex, const Descri
 
     auto &ret = *descriptorPoolMap.emplace(
         hash,
-        std::make_unique<DescriptorPool>(device, layout)
+        std::make_unique<DescriptorPool>(device.getDeviceHandle(), layout)
     ).first->second;
     spdlog::info("Frame: created descriptor pool at {}", (void*) &ret);
     return ret;
@@ -134,7 +160,11 @@ DescriptorSet &Frame::getDescriptorSet(
 
     auto &ret = *descriptorSetMap.emplace(
         hash,
-        std::make_unique<DescriptorSet>(device, pool, bufferBindingInfos, imageBindingInfos)
+        std::make_unique<DescriptorSet>(
+            device.getDeviceHandle(), 
+            pool, bufferBindingInfos, 
+            imageBindingInfos
+        )
     ).first->second;
     spdlog::info("Frame: created descriptor set at {}", (void*) &ret);
     return ret;
@@ -150,3 +180,27 @@ void Frame::updateDescriptorSets(uint32_t concurrencyIndex)
     }
 }
 
+void Frame::updateGlobalUniformBuffer(const GlobalUniformData &data)
+{
+    *reinterpret_cast<GlobalUniformData *>(globalUniformBuffer.getData()) = data;
+}
+
+GlobalUniformData &Frame::getGlobalUniformData()
+{
+    return *reinterpret_cast<GlobalUniformData *>(globalUniformBuffer.getData());
+}
+
+VkBuffer Frame::getGlobalUniformBufferHandle()
+{
+    return globalUniformBuffer.getHandle();
+}
+
+
+MappedBuffer Frame::createGlobalUniformBuffer()
+{
+    return MappedBuffer(
+        device.getAllocator(),
+        sizeof(GlobalUniformData),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    );
+}

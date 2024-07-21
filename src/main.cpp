@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
         Application app(true, 3, singleFrame);
         app.run();
     } catch (const std::exception& e) {
-        spdlog::critical(e.what());
+        spdlog::critical("Exception {}: {}", typeid(e).name(), e.what());
         return 1;
     }
 

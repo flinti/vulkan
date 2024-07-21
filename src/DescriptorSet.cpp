@@ -61,7 +61,10 @@ void DescriptorSet::updateAll()
 
     for (const auto &imageInfo : imageBindingInfos) {
         if (bufferBindingInfos.find(imageInfo.first) != bufferBindingInfos.end()) {
-            throw std::invalid_argument(fmt::format("attempting to update binding {} with an image info, but a buffer info for this binding index is also provided"));
+            throw std::invalid_argument(fmt::format(
+                "attempting to update binding {} with an image info, but a buffer info for this binding index is also provided",
+                imageInfo.first
+            ));
         }
 
         const auto &binding = descriptorPool.getDescriptorSetLayout().getBinding(imageInfo.first);
