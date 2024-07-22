@@ -108,16 +108,17 @@ void Application::initVulkan(bool validationLayers)
 	createRenderPassAndSwapChain();
 
 	loadResources();
+
+	createInitialObjects();
 	
 	frames.reserve(concurrentFrames);
 	for (size_t i = 0; i < concurrentFrames; ++i) {
-		frames.emplace_back(
+		Frame &frame = frames.emplace_back(
 			*device, 
 			device->getQueueFamilyIndices().graphics.value()
 		);
+		updateDescriptors(frame);
 	}
-
-	createInitialObjects();
 }
 
 VkSurfaceFormatKHR Application::chooseSwapChainSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats)
@@ -247,19 +248,35 @@ void Application::loadResources()
 	spdlog::info("loaded resources:\n{}", resourceRepository->resourceTree(1));
 
 	spdlog::info("creating materials...");
+	std::vector<ImageResource> materialResources0{
+		resourceRepository->getImage("image/bird.png")
+	};
 	addMaterial(std::make_unique<Material>(
 		0,
 		*device,
 		resourceRepository->getVertexShader("shader/shader.vert"),
 		resourceRepository->getFragmentShader("shader/shader.frag"),
-		resourceRepository->getImage("image/bird.png")
+		materialResources0,
+		Material::Parameters{
+			.ambient{0.005f},
+			.diffuse{0.2f},
+			.specularAndShininess{0.8f, 0.8f, 0.3f, 100.f},
+		}
 	));
+	std::vector<ImageResource> materialResources1{
+		resourceRepository->getImage("image/flower.png")
+	};
 	addMaterial(std::make_unique<Material>(
 		1,
 		*device,
 		resourceRepository->getVertexShader("shader/shader.vert"),
 		resourceRepository->getFragmentShader("shader/shader.frag"),
-		resourceRepository->getImage("image/flower.png")
+		materialResources1,
+		Material::Parameters{
+			.ambient{0.05f},
+			.diffuse{0.5f},
+			.specularAndShininess{0.4f, 0.4f, 0.4f, 40.f},
+		}
 	));
 }
 
@@ -291,30 +308,14 @@ void Application::createInitialObjects()
 
 void Application::updateDescriptors(Frame &frame)
 {
-	// we need to make sure all descriptor sets needed for all the graphics pipelines have been created
-	// and updated at least once
-	// TODO: improve, do not do all of this every frame
-
-	GlobalUniformData uniformData{};
-	uniformData.viewProj = camera.getTransform();
-	uniformData.viewPos = camera.getEye();
-	uniformData.time = glm::vec4(static_cast<float>(secondsRunning));
-	uniformData.lightPosition = glm::vec3(5.f, 5.f, 3.f);
-	frame.updateGlobalUniformBuffer(uniformData);
-
-	std::map<uint32_t, VkDescriptorBufferInfo> bufferInfos;
-	bufferInfos[0] = VkDescriptorBufferInfo{
-		.buffer = frame.getGlobalUniformBufferHandle(),
-		.offset = 0,
-		.range = VK_WHOLE_SIZE
-	};
-
+	// make sure all required descriptor sets have been allocated and initialize them
 	for (auto &pipelineIter : graphicsPipelines) {
 		GraphicsPipeline &pipeline = *pipelineIter.second;
+
 		frame.getDescriptorSet(
 			0, 
-			pipeline.getDescriptorSetLayout(), 
-			bufferInfos,
+			pipeline.getMaterialDescriptorSetLayout(), 
+			pipeline.getMaterial().getDescriptorBufferInfos(),
 			pipeline.getMaterial().getDescriptorImageInfos()
 		);
 	}
@@ -367,19 +368,18 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, VkFramebuff
 		GraphicsPipeline &pipeline = *graphicsPipelines.at(r.getMaterial().getId());
 		pipeline.bind(commandBuffer);
 
-		std::map<uint32_t, VkDescriptorBufferInfo> bufferInfos;
-		bufferInfos[0] = VkDescriptorBufferInfo{
-			.buffer = frame.getGlobalUniformBufferHandle(),
-			.offset = 0,
-			.range = VK_WHOLE_SIZE
-		};
-		const DescriptorSet &set = frame.getDescriptorSet(
-			0,
-			pipeline.getDescriptorSetLayout(), 
-			bufferInfos,
-			r.getMaterial().getDescriptorImageInfos()
+		pipeline.bindDescriptorSet(
+			commandBuffer,
+			DescriptorSetIndex::GLOBAL_UNIFORM_DATA,
+			frame.getGlobalUniformDataDescriptorSet()
 		);
-		pipeline.bindDescriptorSet(commandBuffer, set);
+		pipeline.bindDescriptorSet(commandBuffer, DescriptorSetIndex::MATERIAL_DATA,
+			frame.getDescriptorSet(
+				0,
+				pipeline.getMaterialDescriptorSetLayout(), 
+				r.getMaterial().getDescriptorBufferInfos(),
+				r.getMaterial().getDescriptorImageInfos()
+		));
 
 		pushConstants.transform = r.getTransform();
 		pushConstants.normalTransform = glm::transpose(glm::inverse(pushConstants.transform));
@@ -460,7 +460,13 @@ void Application::draw()
 	);
 
 	updateCamera();
-	updateDescriptors(frame);
+
+	GlobalUniformData uniformData{};
+	uniformData.viewProj = camera.getTransform();
+	uniformData.viewPos = camera.getEye();
+	uniformData.time = glm::vec4(static_cast<float>(secondsRunning));
+	uniformData.lightPosition = glm::vec3(5.f, 5.f, 3.f);
+	frame.updateGlobalUniformBuffer(uniformData);
 
 	uint32_t imageIndex;
     VkResult result = swapChain->acquireNextImage(

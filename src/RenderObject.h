@@ -3,6 +3,7 @@
 
 #include "Buffer.h"
 #include "Image.h"
+#include <map>
 #include <memory>
 #include <string>
 #include <vulkan/vulkan_core.h>
@@ -12,6 +13,18 @@ class Mesh;
 class Material;
 class Device;
 
+struct GlobalUniformData
+{
+    glm::mat4 viewProj;
+    glm::vec3 viewPos;
+    float pad1;
+    glm::vec4 time;
+    glm::vec3 lightPosition;
+    float pad2;
+    glm::vec3 lightColor;
+    float pad3;
+};
+
 class RenderObject
 {
 public:
@@ -20,11 +33,13 @@ public:
     RenderObject(RenderObject &&);
     ~RenderObject();
 
+    static std::vector<VkDescriptorSetLayoutBinding> getGlobalUniformDataLayoutBindings();
+
     const glm::mat4 &getTransform() const;
     void setTransform(const glm::mat4 &transform);
     const Material &getMaterial() const;
 
-    void enqueueDrawCommands(VkCommandBuffer commandBuffer)const ;
+    void enqueueDrawCommands(VkCommandBuffer commandBuffer) const;
 private:
     Device &device;
     const Material &material;

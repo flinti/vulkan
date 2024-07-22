@@ -1,6 +1,7 @@
 #include "Frame.h"
 #include "Device.h"
 #include "DescriptorPool.h"
+#include "RenderObject.h"
 #include "VkHash.h"
 #include "VkHelpers.h"
 
@@ -11,7 +12,20 @@
 
 Frame::Frame(Device &device, uint32_t renderQueueFamilyIndex)
     : device(device),
-    globalUniformBuffer(createGlobalUniformBuffer())
+    globalUniformBuffer(createGlobalUniformBuffer()),
+    globalUniformDataDescriptorSet(getDescriptorSet(
+        0, 
+        device.getObjectCache().getDescriptorSetLayout(RenderObject::getGlobalUniformDataLayoutBindings()), 
+        std::map<uint32_t, VkDescriptorBufferInfo>{std::make_pair(
+            0,
+            VkDescriptorBufferInfo{
+                .buffer = globalUniformBuffer.getHandle(),
+                .offset = 0,
+                .range = VK_WHOLE_SIZE,
+            }
+        )}, 
+        {})
+    )
 {
 	VkCommandPoolCreateInfo poolInfo{};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -61,7 +75,8 @@ Frame::Frame(Device &device, uint32_t renderQueueFamilyIndex)
 }
 
 Frame::Frame(Frame &&other)
-    : commandPool(other.commandPool),
+    : device(other.device),
+    commandPool(other.commandPool),
     commandBuffer(other.commandBuffer),
     fence(other.fence),
     imageAvailableSemaphore(other.imageAvailableSemaphore),
@@ -69,7 +84,7 @@ Frame::Frame(Frame &&other)
     globalUniformBuffer(std::move(other.globalUniformBuffer)),
     descriptorPools(std::move(other.descriptorPools)),
     descriptorSets(std::move(other.descriptorSets)),
-    device(other.device)
+    globalUniformDataDescriptorSet(other.globalUniformDataDescriptorSet)
 {
     other.commandPool = VK_NULL_HANDLE;
     other.commandBuffer = VK_NULL_HANDLE;
@@ -168,6 +183,12 @@ DescriptorSet &Frame::getDescriptorSet(
     ).first->second;
     spdlog::info("Frame: created descriptor set at {}", (void*) &ret);
     return ret;
+}
+
+
+DescriptorSet &Frame::getGlobalUniformDataDescriptorSet()
+{
+    return globalUniformDataDescriptorSet;
 }
 
 void Frame::updateDescriptorSets(uint32_t concurrencyIndex)

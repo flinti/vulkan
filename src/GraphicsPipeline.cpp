@@ -3,6 +3,7 @@
 #include "DescriptorSetLayout.h"
 #include "DescriptorSet.h"
 #include "Material.h"
+#include "RenderObject.h"
 #include "Vertex.h"
 #include "RenderPass.h"
 #include "VkHelpers.h"
@@ -19,15 +20,27 @@ GraphicsPipeline::GraphicsPipeline(
 ) : device(device),
 	renderPass(renderPass),
 	material(material),
-	descriptorSetLayout(
+	materialDescriptorSetLayout(
 		device.getObjectCache().getDescriptorSetLayout(material.getDescriptorSetLayoutBindings())
 	)
 {
 	createPipelineLayout();
-	createGraphicsPipeline(
+	createPipeline(
 		material.getVertexShaderResource(),
 		material.getFragmentShaderResource()
 	);
+}
+
+GraphicsPipeline::GraphicsPipeline(GraphicsPipeline &&other)
+	: device(other.device),
+	renderPass(other.renderPass),
+	material(other.material),
+	pipelineLayout(other.pipelineLayout),
+	pipeline(other.pipeline),
+	materialDescriptorSetLayout(other.materialDescriptorSetLayout)
+{
+	other.pipelineLayout = VK_NULL_HANDLE;
+	other.pipeline = VK_NULL_HANDLE;
 }
 
 GraphicsPipeline::~GraphicsPipeline()
@@ -41,9 +54,9 @@ const Material &GraphicsPipeline::getMaterial() const
 	return material;
 }
 
-const DescriptorSetLayout &GraphicsPipeline::getDescriptorSetLayout() const
+const DescriptorSetLayout &GraphicsPipeline::getMaterialDescriptorSetLayout() const
 {
-	return descriptorSetLayout;
+	return materialDescriptorSetLayout;
 }
 
 void GraphicsPipeline::bind(VkCommandBuffer commandBuffer)
@@ -51,14 +64,17 @@ void GraphicsPipeline::bind(VkCommandBuffer commandBuffer)
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
-void GraphicsPipeline::bindDescriptorSet(VkCommandBuffer commandBuffer, const DescriptorSet &set)
-{
+void GraphicsPipeline::bindDescriptorSet(
+	VkCommandBuffer commandBuffer,
+	DescriptorSetIndex index,
+	const DescriptorSet &set
+) {
 	VkDescriptorSet setHandle = set.getHandle();
 	vkCmdBindDescriptorSets(
 		commandBuffer, 
 		VK_PIPELINE_BIND_POINT_GRAPHICS, 
 		pipelineLayout, 
-		0, 
+		static_cast<uint32_t>(index), 
 		1, 
 		&setHandle, 
 		0, 
@@ -77,6 +93,20 @@ void GraphicsPipeline::pushConstants(VkCommandBuffer commandBuffer, const void *
 	);
 }
 
+
+std::vector<VkDescriptorSetLayoutBinding> GraphicsPipeline::createGlobalUniformDataLayoutBindings()
+{
+	return std::vector<VkDescriptorSetLayoutBinding>{
+		VkDescriptorSetLayoutBinding{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr,
+		},
+	};
+}
+
 void GraphicsPipeline::createPipelineLayout()
 {
 	VkPushConstantRange pushConstantRange{};
@@ -84,11 +114,16 @@ void GraphicsPipeline::createPipelineLayout()
 	pushConstantRange.size = sizeof(PushConstants);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	VkDescriptorSetLayout setLayout = descriptorSetLayout.getHandle();
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = {
+		device.getObjectCache().getDescriptorSetLayout(
+			RenderObject::getGlobalUniformDataLayoutBindings()
+		).getHandle(),
+		materialDescriptorSetLayout.getHandle()
+	};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 1;
-	pipelineLayoutInfo.pSetLayouts = &setLayout;
+	pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutInfo.pushConstantRangeCount = 1;
 	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -116,7 +151,7 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte>
 	return shaderModule;
 }
 
-void GraphicsPipeline::createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader)
+void GraphicsPipeline::createPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader)
 {
 	// shaders
 	VkShaderModule vertShaderModule = createShaderModule(vertexShader);

@@ -20,6 +20,13 @@ struct PushConstants {
     glm::mat4 normalTransform;
 };
 
+
+enum class DescriptorSetIndex: uint32_t
+{
+    GLOBAL_UNIFORM_DATA = 0,
+    MATERIAL_DATA = 1,
+};
+
 class GraphicsPipeline
 {
 public:
@@ -28,25 +35,28 @@ public:
         const RenderPass &renderPass,
         const Material &material
     );
+    GraphicsPipeline(const GraphicsPipeline &) = delete;
+    GraphicsPipeline(GraphicsPipeline &&);
     ~GraphicsPipeline();
 
-    const DescriptorSetLayout &getDescriptorSetLayout() const;
+    const DescriptorSetLayout &getMaterialDescriptorSetLayout() const; // set = 1
     const Material &getMaterial() const;
     void bind(VkCommandBuffer commandBuffer);
-    void bindDescriptorSet(VkCommandBuffer commandBuffer, const DescriptorSet &set);
+    void bindDescriptorSet(VkCommandBuffer commandBuffer, DescriptorSetIndex index, const DescriptorSet &set);
     void pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size);
 private:
+    std::vector<VkDescriptorSetLayoutBinding> createGlobalUniformDataLayoutBindings();
     void createPipelineLayout();
     VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
-    void createGraphicsPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
-
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline pipeline = VK_NULL_HANDLE;
+    void createPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
 
     Device &device;
     const RenderPass &renderPass;
     const Material &material;
-    DescriptorSetLayout &descriptorSetLayout;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    DescriptorSetLayout &materialDescriptorSetLayout;
 };
 
 #endif

@@ -6,7 +6,7 @@
 #include <utility>
 #include <vulkan/vulkan_core.h>
 
-DescriptorSetLayout::DescriptorSetLayout(VkDevice device, std::vector<VkDescriptorSetLayoutBinding> bindings)
+DescriptorSetLayout::DescriptorSetLayout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings)
     : device(device), bindings(bindings)
 {
     VkDescriptorSetLayoutCreateInfo createInfo{};

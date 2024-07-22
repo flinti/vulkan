@@ -51,6 +51,19 @@ RenderObject::~RenderObject()
     indexBuffer.reset();
 }
 
+std::vector<VkDescriptorSetLayoutBinding> RenderObject::getGlobalUniformDataLayoutBindings()
+{
+	return std::vector<VkDescriptorSetLayoutBinding>{
+		VkDescriptorSetLayoutBinding{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			.pImmutableSamplers = nullptr,
+		},
+	};
+}
+
 const glm::mat4 &RenderObject::getTransform() const
 {
     return transform;

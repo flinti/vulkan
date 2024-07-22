@@ -14,6 +14,7 @@
 #include <vulkan/vulkan_core.h>
 
 class Device;
+struct GlobalUniformData;
 
 class Frame
 {
@@ -34,6 +35,7 @@ public:
         const std::map<uint32_t, VkDescriptorBufferInfo> &bufferBindingInfos, 
         const std::map<uint32_t, VkDescriptorImageInfo> &imageBindingInfos
     );
+    DescriptorSet &getGlobalUniformDataDescriptorSet();
     void updateDescriptorSets(uint32_t concurrencyIndex);
     void updateGlobalUniformBuffer(const GlobalUniformData &data);
     GlobalUniformData &getGlobalUniformData();
@@ -52,6 +54,7 @@ private:
 
     std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorPool>>> descriptorPools;
     std::unordered_map<size_t, std::unordered_map<size_t, std::unique_ptr<DescriptorSet>>> descriptorSets;
+    DescriptorSet &globalUniformDataDescriptorSet;
 };
 
 #endif

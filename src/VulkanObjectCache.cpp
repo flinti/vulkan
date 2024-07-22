@@ -2,6 +2,7 @@
 #include "DescriptorSetLayout.h"
 #include "VkHelpers.h"
 #include "VkHash.h"
+#include <spdlog/spdlog.h>
 #include <vulkan/vulkan_core.h>
 
 VulkanObjectCache::VulkanObjectCache(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device)
@@ -29,6 +30,9 @@ VkSampler VulkanObjectCache::getSampler(const VkSamplerCreateInfo &info)
     VkSampler newSampler = VK_NULL_HANDLE;
     VK_ASSERT(vkCreateSampler(device, &info, nullptr, &newSampler));
     samplers.emplace(hash, newSampler);
+
+    spdlog::info("VulkanObjectCache: created sampler {}", (void*) newSampler);
+
     return newSampler;
 }
 
@@ -45,5 +49,13 @@ DescriptorSetLayout &VulkanObjectCache::getDescriptorSetLayout(
     if (i != descriptorSetLayouts.end()) {
         return *i->second;
     }
-    return *descriptorSetLayouts.emplace(hash, std::make_unique<DescriptorSetLayout>(device, bindings)).first->second;
+
+    DescriptorSetLayout &layout = *descriptorSetLayouts.emplace(
+        hash,
+        std::make_unique<DescriptorSetLayout>(device, bindings)
+    ).first->second;
+
+    spdlog::info("VulkanObjectCache: created descriptor set layout at {}", (void*) &layout);
+
+    return layout;
 }

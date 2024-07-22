@@ -14,9 +14,10 @@ layout(location = 2) in vec3 color;
 layout(location = 3) in vec2 uv;
 
 layout(location = 0) out vec3 fragPositionWorld;
-layout(location = 1) out vec3 fragNormalWorld;
-layout(location = 2) out vec3 fragColor;
-layout(location = 3) out vec2 fragUv;
+layout(location = 1) out vec3 fragPositionModel;
+layout(location = 2) out vec3 fragNormalWorld;
+layout(location = 3) out vec3 fragColor;
+layout(location = 4) out vec2 fragUv;
 
 layout(push_constant) uniform pushConstants
 {
@@ -31,6 +32,7 @@ void main() {
 
     gl_Position = positionView;
     fragPositionWorld = positionWorld.xyz;
+    fragPositionModel = position;
     fragNormalWorld = normalWorld.xyz;
     fragColor = color;
     fragUv = uv;

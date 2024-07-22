@@ -8,7 +8,7 @@
 class DescriptorSetLayout
 {
 public:
-    DescriptorSetLayout(VkDevice device, std::vector<VkDescriptorSetLayoutBinding> bindings);
+    DescriptorSetLayout(VkDevice device, const std::vector<VkDescriptorSetLayoutBinding> &bindings);
     DescriptorSetLayout(const DescriptorSetLayout &) = delete;
     DescriptorSetLayout(DescriptorSetLayout &&);
     ~DescriptorSetLayout();
