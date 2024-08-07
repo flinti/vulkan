@@ -4,12 +4,13 @@
 #include "Material.h"
 
 #include <glm/ext/matrix_float4x4.hpp>
+#include <utility>
 #include <vulkan/vulkan_core.h>
 #include <spdlog/spdlog.h>
 
-RenderObject::RenderObject(Device &device, const Mesh &mesh, const Material &material, std::string name)
-    : device(device),
-    material(material),
+RenderObject::RenderObject(uint32_t id, Device &device, const Mesh &mesh, const Material &material, std::string name)
+    : device(&device),
+    material(&material),
     transform(1.f), 
     indexCount(mesh.getIndexCount()),
     vertexCount(mesh.getVertexCount()),
@@ -29,6 +30,7 @@ RenderObject::RenderObject(Device &device, const Mesh &mesh, const Material &mat
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         : nullptr
     ),
+    id(id),
     name(name)
 {
 }
@@ -42,14 +44,38 @@ RenderObject::RenderObject(RenderObject &&other)
     indexType(other.indexType),
     vertexBuffer(std::move(other.vertexBuffer)),
     indexBuffer(std::move(other.indexBuffer)),
+    id(other.id),
     name(std::move(other.name))
 {
+    other.device = nullptr;
+    other.material = nullptr;
 }
 
 RenderObject::~RenderObject()
 {
     indexBuffer.reset();
 }
+
+
+RenderObject &RenderObject::operator =(RenderObject &&other)
+{
+    device = other.device;
+    material = other.material;
+    transform = other.transform;
+    indexCount = other.indexCount;
+    vertexCount = other.vertexCount;
+    indexType = other.indexType;
+    vertexBuffer = std::move(other.vertexBuffer);
+    indexBuffer = std::move(other.indexBuffer);
+    id = other.id;
+    name = std::move(other.name);
+
+    other.device = nullptr;
+    other.material = nullptr;
+
+    return *this;
+}
+
 
 std::vector<VkDescriptorSetLayoutBinding> RenderObject::getGlobalUniformDataLayoutBindings()
 {
@@ -64,6 +90,11 @@ std::vector<VkDescriptorSetLayoutBinding> RenderObject::getGlobalUniformDataLayo
 	};
 }
 
+uint32_t RenderObject::getId() const
+{
+    return id;
+}
+
 const glm::mat4 &RenderObject::getTransform() const
 {
     return transform;
@@ -76,7 +107,7 @@ void RenderObject::setTransform(const glm::mat4 &transform)
 
 const Material &RenderObject::getMaterial() const
 {
-    return material;
+    return *material;
 }
 
 void RenderObject::enqueueDrawCommands(VkCommandBuffer commandBuffer) const

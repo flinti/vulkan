@@ -68,6 +68,14 @@ private:
     void cleanupSwapChainAndFramebuffers();
     void cleanup();
     void addMaterial(std::unique_ptr<Material> material);
+    uint32_t addObject(
+        const Mesh &mesh,
+        const Material &material,
+        glm::mat4 transform = glm::mat4{1.f},
+        std::string name = ""
+    );
+    RenderObject &getObject(uint32_t id);
+    void removeObject(uint32_t id);
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         VkDebugUtilsMessageSeverityFlagBitsEXT, 
@@ -108,7 +116,9 @@ private:
     PushConstants pushConstants;
     std::unordered_map<uint32_t, std::unique_ptr<Material>> materials;
     std::unordered_map<uint32_t, std::unique_ptr<GraphicsPipeline>> graphicsPipelines;
+    uint32_t nextId = 1;
     std::vector<RenderObject> renderObjects;
+    std::unordered_map<uint32_t, size_t> renderObjectIdIndexMap;
 };
 
 

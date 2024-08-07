@@ -8,7 +8,7 @@
 
 Buffer::Buffer(DeviceAllocator &allocator, void *data, size_t size, VkBufferUsageFlags usage)
     : size(size),
-    allocator(allocator),
+    allocator(&allocator),
     bufferAllocation(VK_NULL_HANDLE, VK_NULL_HANDLE)
 {
     bufferAllocation = allocator.allocateDeviceLocalBufferAndTransfer(data, size, usage);
@@ -25,9 +25,23 @@ Buffer::Buffer(Buffer &&b) noexcept
 Buffer::~Buffer()
 {
     if (bufferAllocation.first != VK_NULL_HANDLE) {
-        allocator.free(bufferAllocation);
+        allocator->free(bufferAllocation);
     }
 }
+
+
+Buffer &Buffer::operator =(Buffer &&other)
+{
+    size = other.size;
+    allocator = other.allocator;
+    bufferAllocation = other.bufferAllocation;
+
+    other.allocator = nullptr;
+    other.bufferAllocation.first = VK_NULL_HANDLE;
+
+    return *this;
+}
+
 
 VkBuffer Buffer::getHandle() const
 {

@@ -1,5 +1,4 @@
 #include "Application.h"
-#include "DescriptorSet.h"
 #include "GraphicsPipeline.h"
 #include "Mesh.h"
 #include "RenderObject.h"
@@ -290,18 +289,40 @@ void Application::createInitialObjects()
 	float s = 1.f;
 	std::string namePrefix = "";
 	for (unsigned i = 0; i < 2; ++i) {
-		RenderObject &m = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"x cube");
-		m.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)));
-		RenderObject &m2 = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"y cube");
-		m2.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)));
-		RenderObject &m3 = renderObjects.emplace_back(*device, cube, *materials[0], namePrefix+"z cube");
-		m3.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)));
+		addObject(
+			cube,
+			*materials[0],
+			glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)),
+			namePrefix+"x cube"
+		);
+		addObject(
+			cube,
+			*materials[0],
+			glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)),
+			namePrefix+"y cube"
+		);
+		addObject(
+			cube,
+			*materials[0],
+			glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)),
+			namePrefix+"z cube"
+		);
 		s *= -1.f;
 		namePrefix = "-";
 	}
-	renderObjects.emplace_back(*device, cube, *materials[1], "mid cube");
-	renderObjects.emplace_back(*device, cube, *materials[1], "sun")
-		.setTransform(glm::translate(glm::mat4(1.f), glm::vec3(5.f, 5.f, 3.f)));
+
+	addObject(
+		cube,
+		*materials[1],
+		glm::mat4{1.f},
+		"mid cube"
+	);
+	addObject(
+		cube,
+		*materials[1],
+		glm::translate(glm::mat4(1.f), glm::vec3(5.f, 5.f, 3.f)),
+		"sun"
+	);
 
 	camera.lookAt(glm::vec3(0.f), 10.f, glm::quarter_pi<float>(), glm::quarter_pi<float>());
 }
@@ -628,6 +649,47 @@ void Application::addMaterial(std::unique_ptr<Material> material)
 			*renderPass,
 			inserted
 	)));
+}
+
+uint32_t Application::addObject(
+	const Mesh &mesh,
+	const Material &material,
+	glm::mat4 transform,
+	std::string name
+) {
+	size_t newIndex = renderObjects.size();
+	uint32_t newId = nextId++;
+
+	spdlog::info("add object: id {}, index {}", newId, newIndex);
+
+	renderObjects.emplace_back(newId, *device, mesh, material, name).setTransform(transform);
+	renderObjectIdIndexMap.emplace(newId, newIndex);
+
+	return newId;
+}
+
+RenderObject &Application::getObject(uint32_t id)
+{
+	const auto indexIter = renderObjectIdIndexMap.find(id);
+	if (indexIter != renderObjectIdIndexMap.end()) {
+		return renderObjects[indexIter->second];
+	}
+	else {
+		throw std::runtime_error(fmt::format("Object with id {} does not exist!", id));
+	}
+}
+
+void Application::removeObject(uint32_t id)
+{
+	const auto indexIter = renderObjectIdIndexMap.find(id);
+	if (indexIter != renderObjectIdIndexMap.end()) {
+		size_t index = indexIter->second;
+		renderObjects.erase(renderObjects.begin() + index);
+		renderObjectIdIndexMap.clear();
+		for (size_t i = 0; i < renderObjects.size(); ++i) {
+			renderObjectIdIndexMap[renderObjects[i].getId()] = i;
+		}
+	}
 }
 
 void Application::onFramebufferResized(GLFWwindow* window, int width, int height)

@@ -14,13 +14,15 @@ public:
     Buffer(Buffer &&) noexcept;
     ~Buffer();
 
+    Buffer &operator =(Buffer &&);
+
     VkBuffer getHandle() const;
     size_t getSize() const;
 private:
     size_t size;
     std::pair<VkBuffer, VmaAllocation> bufferAllocation;
 
-    DeviceAllocator &allocator;
+    DeviceAllocator *allocator;
 };
 
 #endif

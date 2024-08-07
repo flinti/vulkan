@@ -22,7 +22,7 @@ uint32_t Mesh::getVertexCount() const
 	return vertices.size();
 }
 
-const std::vector<uint16_t> &Mesh::getIndexData() const
+const std::vector<Mesh::IndexType> &Mesh::getIndexData() const
 {
     return indices;
 }
@@ -40,7 +40,7 @@ uint32_t Mesh::getIndexCount() const
 
 VkIndexType Mesh::getIndexType() const
 {
-	return VK_INDEX_TYPE_UINT16;
+	return VK_INDEX_TYPE_UINT32;
 }
 
 Mesh Mesh::createRegularPolygon(float r, uint32_t edges, glm::vec3 offset)

@@ -11,10 +11,12 @@
 class Mesh
 {
 public:
+    typedef uint32_t IndexType;
+
     const std::vector<Vertex> &getVertexData() const;
     size_t getVertexDataSize() const;
     uint32_t getVertexCount() const;
-    const std::vector<uint16_t> &getIndexData() const;
+    const std::vector<IndexType> &getIndexData() const;
     size_t getIndexDataSize() const;
     uint32_t getIndexCount() const;
     VkIndexType getIndexType() const;
@@ -25,7 +27,7 @@ public:
     static Mesh createUnitCube();
 private:
     std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<IndexType> indices;
 };
 
 #endif

@@ -28,27 +28,31 @@ struct GlobalUniformData
 class RenderObject
 {
 public:
-    RenderObject(Device &device, const Mesh &mesh, const Material &material, std::string name = "");
+    RenderObject(uint32_t id, Device &device, const Mesh &mesh, const Material &material, std::string name = "");
     RenderObject(const RenderObject &) = delete;
     RenderObject(RenderObject &&);
     ~RenderObject();
 
+    RenderObject &operator =(RenderObject &&);
+
     static std::vector<VkDescriptorSetLayoutBinding> getGlobalUniformDataLayoutBindings();
 
+    uint32_t getId() const;
     const glm::mat4 &getTransform() const;
     void setTransform(const glm::mat4 &transform);
     const Material &getMaterial() const;
 
     void enqueueDrawCommands(VkCommandBuffer commandBuffer) const;
 private:
-    Device &device;
-    const Material &material;
+    Device *device;
+    const Material *material;
     glm::mat4 transform;
     uint32_t indexCount;
     uint32_t vertexCount;
     VkIndexType indexType;
     Buffer vertexBuffer;
     std::unique_ptr<Buffer> indexBuffer;
+    uint32_t id;
     std::string name;
 };
 
