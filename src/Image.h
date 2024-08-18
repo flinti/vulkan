@@ -8,7 +8,13 @@
 #include <filesystem>
 
 class DeviceAllocator;
-class ImageResource;
+
+struct ImageResource
+{
+    uint32_t width;
+    uint32_t height;
+    void *data;
+};
 
 class Image
 {

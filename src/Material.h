@@ -5,7 +5,8 @@
 #include "DeviceAllocator.h"
 #include "GraphicsPipeline.h"
 #include "Image.h"
-#include "ResourceRepository.h"
+#include "Shader.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <glm/ext/vector_float4.hpp>
@@ -16,6 +17,24 @@
 #include <vulkan/vulkan_core.h>
 
 class Device;
+
+struct MaterialResource
+{
+    glm::vec3 ambient;
+    glm::vec3 diffuse;
+    glm::vec3 specular;
+    float shininess;
+    
+    const ImageResource *ambientTexture;
+    const ImageResource *diffuseTexture;
+    const ImageResource *specularTexture;
+    const ImageResource *normalTexture;
+
+    const ShaderResource *vertexShader;
+    const ShaderResource *fragmentShader;
+
+    std::string name;
+};
 
 class Material
 {
@@ -38,6 +57,11 @@ public:
         const Parameters &parameters,
         std::string name = ""
     );
+    Material(
+        uint32_t id,
+        Device &device,
+        const MaterialResource &resource
+    );
     Material(const Material &) = delete;
     Material(Material &&other);
     ~Material();
@@ -51,11 +75,14 @@ public:
     const std::map<uint32_t, VkDescriptorBufferInfo> &getDescriptorBufferInfos() const;
 private:
     std::vector<Image> createImages(const std::vector<ImageResource> &imageResources);
+    std::vector<Image> createImages(const MaterialResource &resource);
     std::vector<VkImageView>  createImageViews();
     VkSampler requestSampler();
     std::vector<VkDescriptorSetLayoutBinding> createDescriptorSetLayoutBindings();
     std::map<uint32_t, VkDescriptorImageInfo> createDescriptorImageInfos();
     std::map<uint32_t, VkDescriptorBufferInfo> createDescriptorBufferInfos();
+    Buffer createParameterBuffer(const Parameters &params);
+    Buffer createParameterBuffer(const MaterialResource &resource);
 
     uint32_t id;
     Device &device;

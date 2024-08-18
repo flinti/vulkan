@@ -7,6 +7,20 @@
 #include <vulkan/vulkan_core.h>
 
 
+
+Mesh::Mesh(std::vector<Vertex> vertices, std::vector<IndexType> indices, const MaterialResource *material)
+	: material(material),
+	vertices(std::move(vertices)),
+	indices(std::move(indices))
+{
+}
+
+
+const MaterialResource *Mesh::getMaterial() const
+{
+	return material;
+}
+
 const std::vector<Vertex> &Mesh::getVertexData() const
 {
     return vertices;

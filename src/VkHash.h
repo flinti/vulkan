@@ -3,27 +3,10 @@
 
 #include "DescriptorSetLayout.h"
 #include "DescriptorSet.h"
+#include "Utility.h"
 
 #include <vulkan/vulkan_core.h>
 #include <unordered_map>
-
-
-template <class T>
-inline void hash_combine(size_t &seed, const T &v)
-{
-    std::hash<T> hasher;
-    size_t hash = hasher(v);
-    hash += 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    seed ^= hash;
-}
-
-template <class T>
-inline size_t hash_value(const T &v)
-{
-    size_t seed = 0;
-    hash_combine(seed, v);
-    return seed;
-}
 
 
 namespace std
@@ -31,8 +14,11 @@ namespace std
     template <>
     struct hash<VkSamplerCreateInfo>
     {
+
         std::size_t operator()(const VkSamplerCreateInfo &info) const
         {
+            using namespace Utility;
+
             std::size_t result = 0;
 
             hash_combine(result, info.pNext);
@@ -62,6 +48,8 @@ namespace std
     {
         std::size_t operator()(const VkDescriptorBufferInfo &info) const
         {
+            using namespace Utility;
+
             std::size_t result = 0;
 
             hash_combine(result, info.buffer);
@@ -77,6 +65,8 @@ namespace std
     {
         std::size_t operator()(const VkDescriptorImageInfo &info) const
         {
+            using namespace Utility;
+            
             std::size_t result = 0;
 
             hash_combine(result, info.sampler);
@@ -92,6 +82,8 @@ namespace std
     {
         std::size_t operator()(const VkDescriptorSetLayoutBinding &object) const
         {
+            using namespace Utility;
+            
             std::size_t result = 0;
 
             hash_combine(result, object.binding);
@@ -113,6 +105,8 @@ namespace std
     {
         std::size_t operator()(const DescriptorSetLayout &object) const
         {
+            using namespace Utility;
+            
             std::size_t result = 0;
 
             hash_combine(result, object.getHandle());

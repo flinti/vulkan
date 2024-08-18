@@ -133,7 +133,7 @@ const VkSemaphore &Frame::getRenderFinishedSemaphore() const
 
 DescriptorPool &Frame::getDescriptorPool(uint32_t concurrencyIndex, const DescriptorSetLayout &layout)
 {
-    size_t hash = hash_value(layout);
+    size_t hash = Utility::hash_value(layout);
 
     auto &descriptorPoolMap = descriptorPools[concurrencyIndex];
 
@@ -157,12 +157,12 @@ DescriptorSet &Frame::getDescriptorSet(
     const std::map<uint32_t, VkDescriptorImageInfo> &imageBindingInfos
 )
 {
-    size_t hash = hash_value(layout);
+    size_t hash = Utility::hash_value(layout);
     for (auto &i : bufferBindingInfos) {
-        hash_combine(hash, i.second);
+        Utility::hash_combine(hash, i.second);
     }
     for (auto &i : imageBindingInfos) {
-        hash_combine(hash, i.second);
+        Utility::hash_combine(hash, i.second);
     }
 
     auto &descriptorSetMap = descriptorSets[concurrencyIndex];

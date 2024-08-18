@@ -8,11 +8,18 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+struct MaterialResource;
+
 class Mesh
 {
 public:
     typedef uint32_t IndexType;
 
+    Mesh() = default;
+    Mesh(std::vector<Vertex> vertices, std::vector<IndexType> indices, const MaterialResource *material = nullptr);
+    ~Mesh() = default;
+
+    const MaterialResource *getMaterial() const;
     const std::vector<Vertex> &getVertexData() const;
     size_t getVertexDataSize() const;
     uint32_t getVertexCount() const;
@@ -26,6 +33,7 @@ public:
     static Mesh createTriangle(glm::vec3 a, glm::vec3 b, glm::vec3 offset = glm::vec3(0.f));
     static Mesh createUnitCube();
 private:
+    const MaterialResource *material;
     std::vector<Vertex> vertices;
     std::vector<IndexType> indices;
 };

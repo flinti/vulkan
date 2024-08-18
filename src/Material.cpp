@@ -25,12 +25,7 @@ Material::Material(
     images(createImages(imageResources)),
     imageViews(createImageViews()),
     sampler(requestSampler()),
-    parameterBuffer(
-        device.getAllocator(),
-        (void*) &parameters,
-        sizeof(parameters),
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    ),
+    parameterBuffer(createParameterBuffer(parameters)),
     descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
     descriptorImageInfos(createDescriptorImageInfos()),
     descriptorBufferInfos(createDescriptorBufferInfos()),
@@ -53,6 +48,23 @@ Material::Material(Material &&other)
     name(std::move(other.name))
 {
     other.sampler = VK_NULL_HANDLE;
+}
+
+
+Material::Material(uint32_t id, Device &device, const MaterialResource &resource)
+    : id(id),
+    device(device),
+    vertexShader(*resource.vertexShader),
+    fragmentShader(*resource.fragmentShader),
+    images(createImages(resource)),
+    imageViews(createImageViews()),
+    sampler(requestSampler()),
+    parameterBuffer(createParameterBuffer(resource)),
+    descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
+    descriptorImageInfos(createDescriptorImageInfos()),
+    descriptorBufferInfos(createDescriptorBufferInfos()),
+    name(resource.name)
+{
 }
 
 Material::~Material()
@@ -112,7 +124,30 @@ std::vector<Image> Material::createImages(const std::vector<ImageResource> &imag
         images.emplace_back(device, imageResource);
     }
 
+    spdlog::info("Material {}: created {} images", id, images.size());
+
     return images;
+}
+
+std::vector<Image> Material::createImages(const MaterialResource &resource)
+{
+    spdlog::info("Material {}: creating images", id);
+    // TODO: the images for a single ImageResource should not be created multiple times
+    std::vector<ImageResource> imageResources;
+    imageResources.reserve(4);
+    if (resource.ambientTexture) {
+        imageResources.push_back(*resource.ambientTexture);
+    }
+    if (resource.diffuseTexture) {
+        imageResources.push_back(*resource.diffuseTexture);
+    }
+    if (resource.specularTexture) {
+        imageResources.push_back(*resource.specularTexture);
+    }
+    if (resource.normalTexture) {
+        imageResources.push_back(*resource.normalTexture);
+    }
+    return createImages(imageResources);
 }
 
 std::vector<VkImageView> Material::createImageViews()
@@ -217,4 +252,24 @@ std::map<uint32_t, VkDescriptorBufferInfo> Material::createDescriptorBufferInfos
             }
         )
     };
+}
+
+Buffer Material::createParameterBuffer(const Parameters &params)
+{
+    return Buffer{
+        device.getAllocator(),
+        (void *) &params,
+        sizeof(params),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    };
+}
+
+Buffer Material::createParameterBuffer(const MaterialResource &resource)
+{
+    Parameters params{
+        .ambient = resource.ambient,
+        .diffuse = resource.diffuse,
+        .specularAndShininess = glm::vec4(resource.specular, resource.shininess),
+    };
+    return createParameterBuffer(params);
 }

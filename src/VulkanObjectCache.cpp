@@ -22,7 +22,7 @@ VulkanObjectCache::~VulkanObjectCache()
 
 VkSampler VulkanObjectCache::getSampler(const VkSamplerCreateInfo &info)
 {
-    size_t hash = hash_value(info);
+    size_t hash = Utility::hash_value(info);
     auto i = samplers.find(hash);
     if (i != samplers.end()) {
         return i->second;
@@ -41,9 +41,9 @@ DescriptorSetLayout &VulkanObjectCache::getDescriptorSetLayout(
     VkDescriptorSetLayoutCreateFlags flags
 )
 {
-    size_t hash = hash_value(flags);
+    size_t hash = Utility::hash_value(flags);
     for (auto &binding : bindings) {
-        hash_combine(hash, binding);
+        Utility::hash_combine(hash, binding);
     }
     auto i = descriptorSetLayouts.find(hash);
     if (i != descriptorSetLayouts.end()) {

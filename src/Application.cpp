@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "GraphicsPipeline.h"
+#include "Material.h"
 #include "Mesh.h"
 #include "RenderObject.h"
 #include "RenderPass.h"
@@ -234,7 +235,7 @@ void Application::recreateSwapChain()
 void Application::loadResources()
 {
 	spdlog::info("creating resource repository and loading resources...");
-	resourceRepository = std::make_unique<ResourceRepository>();
+	resourceRepository = std::make_unique<ResourceRepository>("image/default");
 	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
 		{ 6.f, 0.f, 0.f }, 
 		{ 0.f, 0.f, 6.f },
@@ -248,7 +249,7 @@ void Application::loadResources()
 
 	spdlog::info("creating materials...");
 	std::vector<ImageResource> materialResources0{
-		resourceRepository->getImage("image/bird.png")
+		resourceRepository->getImage("image/bird")
 	};
 	addMaterial(std::make_unique<Material>(
 		0,
@@ -263,7 +264,7 @@ void Application::loadResources()
 		}
 	));
 	std::vector<ImageResource> materialResources1{
-		resourceRepository->getImage("image/flower.png")
+		resourceRepository->getImage("image/flower")
 	};
 	addMaterial(std::make_unique<Material>(
 		1,
@@ -277,48 +278,31 @@ void Application::loadResources()
 			.specularAndShininess{0.4f, 0.4f, 0.4f, 40.f},
 		}
 	));
+	nextMaterialId = 2;
 }
 
 void Application::createInitialObjects()
 {
 	spdlog::info("creating initial objects...");
 
-	const Mesh &cube = resourceRepository->getMesh("mesh/cube");
-	const Mesh &plane = resourceRepository->getMesh("mesh/plane");
-
-	float s = 1.f;
-	std::string namePrefix = "";
-	for (unsigned i = 0; i < 2; ++i) {
-		addObject(
-			cube,
-			*materials[0],
-			glm::translate(glm::mat4(1.f), glm::vec3(2.f * s, 0.f, 0.f)),
-			namePrefix+"x cube"
-		);
-		addObject(
-			cube,
-			*materials[0],
-			glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f * s, 0.f)),
-			namePrefix+"y cube"
-		);
-		addObject(
-			cube,
-			*materials[0],
-			glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 2.f * s)),
-			namePrefix+"z cube"
-		);
-		s *= -1.f;
-		namePrefix = "-";
-	}
-
+	spdlog::info("add cone...");
 	addObject(
-		cube,
+		resourceRepository->getMesh("mesh/cone"),
 		*materials[1],
 		glm::mat4{1.f},
-		"mid cube"
+		"mid"
+	);
+	spdlog::info("add cylinder...");
+	addObject(
+		resourceRepository->getMesh("mesh/cylinder"),
+		glm::translate(
+			glm::rotate(glm::mat4{1.f}, glm::quarter_pi<float>(), glm::vec3(0.f, 0.f, 1.f)),
+			 glm::vec3(-1.5f, -2.5f, 0.f)
+		),
+		"other"
 	);
 	addObject(
-		cube,
+		resourceRepository->getMesh("mesh/icosphere"),
 		*materials[1],
 		glm::translate(glm::mat4(1.f), glm::vec3(5.f, 5.f, 3.f)),
 		"sun"
@@ -651,6 +635,16 @@ void Application::addMaterial(std::unique_ptr<Material> material)
 	)));
 }
 
+
+std::pair<uint32_t, Material *> Application::addMaterial(const MaterialResource &resource)
+{
+	uint32_t newId = nextMaterialId++;
+	auto mat = std::make_unique<Material>(newId, *device, resource);
+	Material *retMat = mat.get();
+	addMaterial(std::move(mat));
+	return std::make_pair(newId, retMat);
+}
+
 uint32_t Application::addObject(
 	const Mesh &mesh,
 	const Material &material,
@@ -666,6 +660,21 @@ uint32_t Application::addObject(
 	renderObjectIdIndexMap.emplace(newId, newIndex);
 
 	return newId;
+}
+
+
+uint32_t Application::addObject(
+	const Mesh &mesh,
+	glm::mat4 transform,
+	std::string name
+) {
+	const MaterialResource *matResource = mesh.getMaterial();
+	if (!matResource) {
+		throw std::runtime_error("Application::addObject: No material specified and mesh has no assigned material");
+	}
+	Material *mat = addMaterial(*matResource).second;
+	uint32_t id = addObject(mesh, *mat, transform, name);
+	return id;
 }
 
 RenderObject &Application::getObject(uint32_t id)

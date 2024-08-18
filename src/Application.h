@@ -68,9 +68,15 @@ private:
     void cleanupSwapChainAndFramebuffers();
     void cleanup();
     void addMaterial(std::unique_ptr<Material> material);
+    std::pair<uint32_t, Material *> addMaterial(const MaterialResource &resource);
     uint32_t addObject(
         const Mesh &mesh,
         const Material &material,
+        glm::mat4 transform = glm::mat4{1.f},
+        std::string name = ""
+    );
+    uint32_t addObject(
+        const Mesh &mesh,
         glm::mat4 transform = glm::mat4{1.f},
         std::string name = ""
     );
@@ -115,6 +121,7 @@ private:
     bool recreatingSwapChain = false;
     PushConstants pushConstants;
     std::unordered_map<uint32_t, std::unique_ptr<Material>> materials;
+    uint32_t nextMaterialId = 1;
     std::unordered_map<uint32_t, std::unique_ptr<GraphicsPipeline>> graphicsPipelines;
     uint32_t nextId = 1;
     std::vector<RenderObject> renderObjects;
