@@ -1,15 +1,23 @@
 newmtl default
 Kd 0.50 0.50 0.50
 Ka 0.05 0.05 0.05
-Tf 1.00 1.00 1.00
-Ni 1.00
+map_Ka image/default
 
+newmtl cylinder
+Kd 0.50 0.50 0.50
+Ka 0.05 0.05 0.05
+Ks 1.00 1.00 1.00
+Ns 60.00
+map_Ka image/bird
+
+newmtl cube
+Kd 0.50 0.50 0.50
+Ka 0.05 0.05 0.05
+Ks 1.00 1.00 0.00
+Ns 30.00
 map_Ka image/flower
 
 newmtl sun
 Kd 0.00 0.00 0.00
 Ka 1.00 1.00 1.00
-Tf 1.00 1.00 1.00
-Ni 1.00
-
 map_Ka image/white

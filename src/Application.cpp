@@ -235,50 +235,10 @@ void Application::recreateSwapChain()
 void Application::loadResources()
 {
 	spdlog::info("creating resource repository and loading resources...");
-	resourceRepository = std::make_unique<ResourceRepository>("image/default");
-	resourceRepository->insertMesh("mesh/plane", Mesh::createPlane(
-		{ 6.f, 0.f, 0.f }, 
-		{ 0.f, 0.f, 6.f },
-		{ -3.f, 0.f, -3.f }
-	));
-	resourceRepository->insertMesh("mesh/hexagon",
-		Mesh::createRegularPolygon(0.75f, 6, { -0.5f, -0.5f, 0.f })
-		);
-	resourceRepository->insertMesh("mesh/cube", Mesh::createUnitCube());
-	spdlog::info("loaded resources:\n{}", resourceRepository->resourceTree(1));
 
-	spdlog::info("creating materials...");
-	std::vector<ImageResource> materialResources0{
-		resourceRepository->getImage("image/bird")
-	};
-	addMaterial(std::make_unique<Material>(
-		0,
-		*device,
-		resourceRepository->getVertexShader("shader/shader.vert"),
-		resourceRepository->getFragmentShader("shader/shader.frag"),
-		materialResources0,
-		Material::Parameters{
-			.ambient{0.005f},
-			.diffuse{0.2f},
-			.specularAndShininess{0.8f, 0.8f, 0.3f, 100.f},
-		}
-	));
-	std::vector<ImageResource> materialResources1{
-		resourceRepository->getImage("image/flower")
-	};
-	addMaterial(std::make_unique<Material>(
-		1,
-		*device,
-		resourceRepository->getVertexShader("shader/shader.vert"),
-		resourceRepository->getFragmentShader("shader/shader.frag"),
-		materialResources1,
-		Material::Parameters{
-			.ambient{0.05f},
-			.diffuse{0.5f},
-			.specularAndShininess{0.4f, 0.4f, 0.4f, 40.f},
-		}
-	));
-	nextMaterialId = 2;
+	resourceRepository = std::make_unique<ResourceRepository>("image/default");
+
+	spdlog::info("loaded resources:\n{}", resourceRepository->resourceTree(1));
 }
 
 void Application::createInitialObjects()
@@ -287,8 +247,7 @@ void Application::createInitialObjects()
 
 	spdlog::info("add cone...");
 	addObject(
-		resourceRepository->getMesh("mesh/cone"),
-		*materials[1],
+		resourceRepository->getMesh("mesh/cube"),
 		glm::mat4{1.f},
 		"mid"
 	);

@@ -1,5 +1,5 @@
 mtllib defaults.mtl
-usemtl default
+usemtl cylinder
 o Cylinder
 v 0.000000 -1.000000 -1.000000
 v 0.000000 1.000000 -1.000000
