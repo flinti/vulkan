@@ -301,9 +301,9 @@ void Application::createInitialObjects()
 		),
 		"other"
 	);
+	spdlog::info("add sun...");
 	addObject(
 		resourceRepository->getMesh("mesh/icosphere"),
-		*materials[1],
 		glm::translate(glm::mat4(1.f), glm::vec3(5.f, 5.f, 3.f)),
 		"sun"
 	);
@@ -668,6 +668,7 @@ uint32_t Application::addObject(
 	glm::mat4 transform,
 	std::string name
 ) {
+	spdlog::info("addObject: mesh {} with material {}", (void*)&mesh, (void*)mesh.getMaterial());
 	const MaterialResource *matResource = mesh.getMaterial();
 	if (!matResource) {
 		throw std::runtime_error("Application::addObject: No material specified and mesh has no assigned material");

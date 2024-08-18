@@ -141,6 +141,7 @@ void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem:
     std::unordered_map<size_t, size_t> vertexHashIndexMap;
     std::vector<Vertex> newVertices;
     std::vector<Mesh::IndexType> newIndices;
+    int materialIdx = -1;
 
     for (const auto &shape : shapes) {
         size_t indexOffset = 0;
@@ -151,6 +152,9 @@ void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem:
                 throw std::runtime_error(
                     fmt::format("Failed to load mesh {}: At least one face is not triangular", name)
                 );
+            }
+            if (materialIdx == -1) {
+                materialIdx = mesh.material_ids[faceIndex];
             }
 
             // 3 vertices per face for a triangle, inverting winding order
@@ -211,12 +215,11 @@ void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem:
         materialResources[i] = loadObjMaterial(materials[i]);
     }
     // TODO: actually assign all materials and not just the first
-    const MaterialResource *mat = materialResources.find(0) != materialResources.end() 
-        ? materialResources[0]
-        : nullptr;
+    const auto iter = materialResources.find(materialIdx);
+    const MaterialResource *mat =  iter != materialResources.end() ? iter->second : nullptr;
     insertMesh(
         name,
-        Mesh{std::move(newVertices), std::move(newIndices), materialResources[0]}
+        Mesh{std::move(newVertices), std::move(newIndices), mat}
     );
 }
 
@@ -228,7 +231,7 @@ const MaterialResource *ResourceRepository::loadObjMaterial(const tinyobj::mater
         return &iter->second;
     }
 
-    spdlog::info("Loading material {} ", material.name);
+    spdlog::info("Loading material {}, ambient texture {} ", material.name, material.ambient_texname);
 
     return &materials.emplace(material.name, MaterialResource{
         .ambient = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]),
@@ -294,19 +297,19 @@ std::string ResourceRepository::resourceTree(size_t indentationLevel) const
     keys.reserve(count);
 
     for (const auto &i : meshes) {
-        keys.push_back(i.first);
+        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
     }
     for (const auto &i : materials) {
-        keys.push_back(i.first);
+        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
     }
     for (const auto &i : images) {
-        keys.push_back(i.first);
+        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
     }
     for (const auto &i : vertexShaders) {
-        keys.push_back(i.first);
+        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
     }
     for (const auto &i : fragmentShaders) {
-        keys.push_back(i.first);
+        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
     }
 
     std::sort(keys.begin(), keys.end());
