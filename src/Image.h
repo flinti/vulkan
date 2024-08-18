@@ -2,19 +2,13 @@
 #define IMAGE_H_
 
 #include "DeviceAllocator.h"
+#include "Resource.h"
 
 #include <utility>
 #include <vulkan/vulkan_core.h>
 #include <filesystem>
 
 class DeviceAllocator;
-
-struct ImageResource
-{
-    uint32_t width;
-    uint32_t height;
-    void *data;
-};
 
 class Image
 {

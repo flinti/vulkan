@@ -73,10 +73,11 @@ std::pair<VkImage, VmaAllocation> Image::createImage(const std::filesystem::path
 
 std::pair<VkImage, VmaAllocation> Image::createImage(const ImageResource &image)
 {
+    const auto &resourceData = image.getData();
     auto createdImage = device.getAllocator().allocateDeviceLocalImageAndTransfer(
-        image.data, 
-        image.width, 
-        image.height, 
+        resourceData.data, 
+        resourceData.width, 
+        resourceData.height, 
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_USAGE_SAMPLED_BIT
     );

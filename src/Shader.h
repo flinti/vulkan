@@ -1,9 +1,9 @@
 #ifndef SHADER_H_
 #define SHADER_H_
 
-#include <vector>
+#include "Resource.h"
 
-typedef std::vector<std::byte> ShaderResource;
+#include <vector>
 
 class Shader
 {

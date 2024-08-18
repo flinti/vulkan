@@ -154,8 +154,8 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte>
 void GraphicsPipeline::createPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader)
 {
 	// shaders
-	VkShaderModule vertShaderModule = createShaderModule(vertexShader);
-    VkShaderModule fragShaderModule = createShaderModule(fragmentShader);
+	VkShaderModule vertShaderModule = createShaderModule(vertexShader.getData());
+    VkShaderModule fragShaderModule = createShaderModule(fragmentShader.getData());
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageInfos = {};
 	shaderStageInfos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

@@ -1,6 +1,6 @@
 #include "ResourceRepository.h"
-#include "Material.h"
 #include "Mesh.h"
+#include "Resource.h"
 #include "Utility.h"
 #include "Vertex.h"
 #include "third-party/stb_image.h"
@@ -14,10 +14,12 @@
 #include <fstream>
 #include <functional>
 #include <ios>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <spdlog/spdlog.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -35,7 +37,7 @@ ResourceRepository::ResourceRepository(const ResourceKey &defaultImage)
 ResourceRepository::~ResourceRepository()
 {
     for (auto &i : images) {
-        stbi_image_free(i.second.data);
+        stbi_image_free(i.second.getData().data);
     }
 }
 
@@ -45,7 +47,7 @@ bool ResourceRepository::hasImage(const ResourceKey &name) const
     return images.find(name) != images.end();
 }
 
-const Mesh &ResourceRepository::getMesh(const ResourceKey &name) const
+const MeshResource &ResourceRepository::getMesh(const ResourceKey &name) const
 {
     const auto &i = meshes.find(name);
     if (i == meshes.end()) {
@@ -104,11 +106,6 @@ const ShaderResource &ResourceRepository::getVertexShader(const ResourceKey &nam
         throw std::runtime_error(fmt::format("ResourceRepository::get*: Resource {} does not exist", name));
     }
     return i->second;
-}
-
-bool ResourceRepository::insertMesh(const ResourceKey &name, Mesh mesh)
-{
-    return meshes.insert({name, std::move(mesh)}).second;
 }
 
 void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem::path &path)
@@ -217,9 +214,12 @@ void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem:
     // TODO: actually assign all materials and not just the first
     const auto iter = materialResources.find(materialIdx);
     const MaterialResource *mat =  iter != materialResources.end() ? iter->second : nullptr;
-    insertMesh(
+    meshes.emplace(
         name,
-        Mesh{std::move(newVertices), std::move(newIndices), mat}
+        MeshResource{
+            nextResourceId++,
+            std::make_unique<Mesh>(std::move(newVertices), std::move(newIndices), mat)
+        }
     );
 }
 
@@ -233,18 +233,22 @@ const MaterialResource *ResourceRepository::loadObjMaterial(const tinyobj::mater
 
     spdlog::info("Loading material {}, ambient texture {} ", material.name, material.ambient_texname);
 
-    return &materials.emplace(material.name, MaterialResource{
-        .ambient = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]),
-        .diffuse = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
-        .specular = glm::vec3(material.specular[0], material.specular[1], material.specular[2]),
-        .shininess = material.shininess,
-        .ambientTexture = hasImage(material.ambient_texname) ? &getImage(material.ambient_texname) : nullptr,
-        .diffuseTexture = hasImage(material.diffuse_texname) ? &getImage(material.diffuse_texname) : nullptr,
-        .specularTexture = hasImage(material.specular_texname) ? &getImage(material.specular_texname) : nullptr,
-        .normalTexture = hasImage(material.normal_texname) ? &getImage(material.normal_texname) : nullptr,
-        .vertexShader = &getVertexShader("shader/shader.vert"),
-        .fragmentShader = &getFragmentShader("shader/shader.frag"),
-        .name{material.name},
+    return &materials.emplace(material.name, 
+        MaterialResource{
+            nextResourceId++,
+            std::unique_ptr<MaterialResourceData>(new MaterialResourceData{
+                .ambient = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]),
+                .diffuse = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
+                .specular = glm::vec3(material.specular[0], material.specular[1], material.specular[2]),
+                .shininess = material.shininess,
+                .ambientTexture = hasImage(material.ambient_texname) ? &getImage(material.ambient_texname) : nullptr,
+                .diffuseTexture = hasImage(material.diffuse_texname) ? &getImage(material.diffuse_texname) : nullptr,
+                .specularTexture = hasImage(material.specular_texname) ? &getImage(material.specular_texname) : nullptr,
+                .normalTexture = hasImage(material.normal_texname) ? &getImage(material.normal_texname) : nullptr,
+                .vertexShader = &getVertexShader("shader/shader.vert"),
+                .fragmentShader = &getFragmentShader("shader/shader.frag"),
+                .name{material.name},
+        }),
     }).first->second;
 }
 
@@ -268,22 +272,25 @@ void ResourceRepository::loadImage(const ResourceKey &name, const std::filesyste
     }
 
     images.emplace(name, ImageResource{
-        (uint32_t) wdt,
-        (uint32_t) hgt,
-        (void *) imageData
+        nextResourceId++,
+        std::unique_ptr<ImageResourceData>(new ImageResourceData{
+            (uint32_t) wdt,
+            (uint32_t) hgt,
+            (void *) imageData
+        })
     });
 }
 
 void ResourceRepository::loadFragmentShader(const ResourceKey &name, const std::filesystem::path &path)
 {
     spdlog::info("Loading fragment shader {} ", path.string());
-    fragmentShaders.emplace(name, readShaderFile(path));
+    fragmentShaders.emplace(name, ShaderResource{nextResourceId++, readShaderFile(path)});
 }
 
 void ResourceRepository::loadVertexShader(const ResourceKey &name, const std::filesystem::path &path)
 {
     spdlog::info("Loading vertex shader {} ", path.string());
-    vertexShaders.emplace(name, readShaderFile(path));
+    vertexShaders.emplace(name, ShaderResource{nextResourceId++, readShaderFile(path)});
 }
 
 std::string ResourceRepository::resourceTree(size_t indentationLevel) const
@@ -297,19 +304,19 @@ std::string ResourceRepository::resourceTree(size_t indentationLevel) const
     keys.reserve(count);
 
     for (const auto &i : meshes) {
-        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
+        keys.push_back(fmt::format("{} ({})", i.first, i.second.getId()));
     }
     for (const auto &i : materials) {
-        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
+        keys.push_back(fmt::format("{} ({})", i.first, i.second.getId()));
     }
     for (const auto &i : images) {
-        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
+        keys.push_back(fmt::format("{} ({})", i.first, i.second.getId()));
     }
     for (const auto &i : vertexShaders) {
-        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
+        keys.push_back(fmt::format("{} ({})", i.first, i.second.getId()));
     }
     for (const auto &i : fragmentShaders) {
-        keys.push_back(fmt::format("{} ({})", i.first, (void *) &i.second));
+        keys.push_back(fmt::format("{} ({})", i.first, i.second.getId()));
     }
 
     std::sort(keys.begin(), keys.end());
@@ -390,7 +397,7 @@ void ResourceRepository::loadAll()
     }
 }
 
-std::vector<std::byte> ResourceRepository::readShaderFile(const std::filesystem::path &path)
+std::unique_ptr<std::vector<std::byte>> ResourceRepository::readShaderFile(const std::filesystem::path &path)
 {
     {
         std::array<char, 4> magicNumber{0, 0, 0, 0};
@@ -401,5 +408,6 @@ std::vector<std::byte> ResourceRepository::readShaderFile(const std::filesystem:
             throw std::runtime_error("Shader is not in SPIR-V format");
         }
     }
-    return Utility::readFile(path);
+
+    return std::make_unique<std::vector<std::byte>>(std::move(Utility::readFile(path)));
 }

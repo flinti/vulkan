@@ -5,6 +5,7 @@
 #include "DeviceAllocator.h"
 #include "GraphicsPipeline.h"
 #include "Image.h"
+#include "Resource.h"
 #include "Shader.h"
 
 #include <cstdint>
@@ -18,24 +19,6 @@
 
 class Device;
 
-struct MaterialResource
-{
-    glm::vec3 ambient;
-    glm::vec3 diffuse;
-    glm::vec3 specular;
-    float shininess;
-    
-    const ImageResource *ambientTexture;
-    const ImageResource *diffuseTexture;
-    const ImageResource *specularTexture;
-    const ImageResource *normalTexture;
-
-    const ShaderResource *vertexShader;
-    const ShaderResource *fragmentShader;
-
-    std::string name;
-};
-
 class Material
 {
 public:
@@ -48,15 +31,6 @@ public:
         glm::vec4 specularAndShininess;
     };
 
-    Material(
-        uint32_t id,
-        Device &device,
-        const ShaderResource &vertexShader,
-        const ShaderResource &fragmentShader,
-        const std::vector<ImageResource> &imageResources,
-        const Parameters &parameters,
-        std::string name = ""
-    );
     Material(
         uint32_t id,
         Device &device,
@@ -74,7 +48,7 @@ public:
     const std::map<uint32_t, VkDescriptorImageInfo> &getDescriptorImageInfos() const;
     const std::map<uint32_t, VkDescriptorBufferInfo> &getDescriptorBufferInfos() const;
 private:
-    std::vector<Image> createImages(const std::vector<ImageResource> &imageResources);
+    std::vector<Image> createImages(const std::vector<const ImageResource *> &imageResources);
     std::vector<Image> createImages(const MaterialResource &resource);
     std::vector<VkImageView>  createImageViews();
     VkSampler requestSampler();

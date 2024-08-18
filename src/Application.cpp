@@ -605,7 +605,7 @@ std::pair<uint32_t, Material *> Application::addMaterial(const MaterialResource 
 }
 
 uint32_t Application::addObject(
-	const Mesh &mesh,
+	const MeshResource &mesh,
 	const Material &material,
 	glm::mat4 transform,
 	std::string name
@@ -623,12 +623,12 @@ uint32_t Application::addObject(
 
 
 uint32_t Application::addObject(
-	const Mesh &mesh,
+	const MeshResource &mesh,
 	glm::mat4 transform,
 	std::string name
 ) {
-	spdlog::info("addObject: mesh {} with material {}", (void*)&mesh, (void*)mesh.getMaterial());
-	const MaterialResource *matResource = mesh.getMaterial();
+	spdlog::info("addObject: mesh {} with material {}", (void*)&mesh, (void*)mesh.getData().getMaterial());
+	const MaterialResource *matResource = mesh.getData().getMaterial();
 	if (!matResource) {
 		throw std::runtime_error("Application::addObject: No material specified and mesh has no assigned material");
 	}

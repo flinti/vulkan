@@ -9,29 +9,6 @@
 #include <utility>
 #include <vulkan/vulkan_core.h>
 
-Material::Material(
-    uint32_t id,
-    Device &device,
-    const ShaderResource &vertexShader,
-    const ShaderResource &fragmentShader,
-    const std::vector<ImageResource> &imageResources,
-    const Parameters &parameters,
-    std::string name
-)
-    : id(id),
-    device(device),
-    vertexShader(vertexShader),
-    fragmentShader(fragmentShader),
-    images(createImages(imageResources)),
-    imageViews(createImageViews()),
-    sampler(requestSampler()),
-    parameterBuffer(createParameterBuffer(parameters)),
-    descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
-    descriptorImageInfos(createDescriptorImageInfos()),
-    descriptorBufferInfos(createDescriptorBufferInfos()),
-    name(name)
-{
-}
 
 Material::Material(Material &&other)
     : id(other.id),
@@ -54,8 +31,8 @@ Material::Material(Material &&other)
 Material::Material(uint32_t id, Device &device, const MaterialResource &resource)
     : id(id),
     device(device),
-    vertexShader(*resource.vertexShader),
-    fragmentShader(*resource.fragmentShader),
+    vertexShader(*resource.getData().vertexShader),
+    fragmentShader(*resource.getData().fragmentShader),
     images(createImages(resource)),
     imageViews(createImageViews()),
     sampler(requestSampler()),
@@ -63,7 +40,7 @@ Material::Material(uint32_t id, Device &device, const MaterialResource &resource
     descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
     descriptorImageInfos(createDescriptorImageInfos()),
     descriptorBufferInfos(createDescriptorBufferInfos()),
-    name(resource.name)
+    name(resource.getData().name)
 {
 }
 
@@ -113,15 +90,15 @@ const std::map<uint32_t, VkDescriptorBufferInfo> &Material::getDescriptorBufferI
 }
 
 
-std::vector<Image> Material::createImages(const std::vector<ImageResource> &imageResources)
+std::vector<Image> Material::createImages(const std::vector<const ImageResource *> &imageResources)
 {
     spdlog::info("Material {}: creating images", id);
 
     std::vector<Image> images;
     images.reserve(imageResources.size());
 
-    for (const auto &imageResource : imageResources) {
-        images.emplace_back(device, imageResource);
+    for (const ImageResource *imageResource : imageResources) {
+        images.emplace_back(device, *imageResource);
     }
 
     spdlog::info("Material {}: created {} images", id, images.size());
@@ -133,19 +110,20 @@ std::vector<Image> Material::createImages(const MaterialResource &resource)
 {
     spdlog::info("Material {}: creating images", id);
     // TODO: the images for a single ImageResource should not be created multiple times
-    std::vector<ImageResource> imageResources;
+    const auto &resourceData = resource.getData();
+    std::vector<const ImageResource *> imageResources;
     imageResources.reserve(4);
-    if (resource.ambientTexture) {
-        imageResources.push_back(*resource.ambientTexture);
+    if (resourceData.ambientTexture) {
+        imageResources.push_back(resourceData.ambientTexture);
     }
-    if (resource.diffuseTexture) {
-        imageResources.push_back(*resource.diffuseTexture);
+    if (resourceData.diffuseTexture) {
+        imageResources.push_back(resourceData.diffuseTexture);
     }
-    if (resource.specularTexture) {
-        imageResources.push_back(*resource.specularTexture);
+    if (resourceData.specularTexture) {
+        imageResources.push_back(resourceData.specularTexture);
     }
-    if (resource.normalTexture) {
-        imageResources.push_back(*resource.normalTexture);
+    if (resourceData.normalTexture) {
+        imageResources.push_back(resourceData.normalTexture);
     }
     return createImages(imageResources);
 }
@@ -266,10 +244,12 @@ Buffer Material::createParameterBuffer(const Parameters &params)
 
 Buffer Material::createParameterBuffer(const MaterialResource &resource)
 {
+    const auto &resourceData = resource.getData();
+
     Parameters params{
-        .ambient = resource.ambient,
-        .diffuse = resource.diffuse,
-        .specularAndShininess = glm::vec4(resource.specular, resource.shininess),
+        .ambient = resourceData.ambient,
+        .diffuse = resourceData.diffuse,
+        .specularAndShininess = glm::vec4(resourceData.specular, resourceData.shininess),
     };
     return createParameterBuffer(params);
 }

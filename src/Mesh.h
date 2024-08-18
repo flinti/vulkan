@@ -1,14 +1,13 @@
 #ifndef MESH_H_
 #define MESH_H_
 
+#include "Resource.h"
 #include "Vertex.h"
 
 #include <cstdint>
 #include <glm/fwd.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
-
-struct MaterialResource;
 
 class Mesh
 {

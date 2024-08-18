@@ -3,6 +3,7 @@
 
 #include "DescriptorSet.h"
 #include "DescriptorSetLayout.h"
+#include "Resource.h"
 #include "Shader.h"
 
 #include <vulkan/vulkan_core.h>

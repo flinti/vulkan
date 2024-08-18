@@ -3,13 +3,14 @@
 
 #include "Buffer.h"
 #include "Image.h"
+#include "Resource.h"
+
 #include <map>
 #include <memory>
 #include <string>
 #include <vulkan/vulkan_core.h>
 #include <glm/mat4x4.hpp>
 
-class Mesh;
 class Material;
 class Device;
 
@@ -28,7 +29,13 @@ struct GlobalUniformData
 class RenderObject
 {
 public:
-    RenderObject(uint32_t id, Device &device, const Mesh &mesh, const Material &material, std::string name = "");
+    RenderObject(
+        uint32_t id,
+        Device &device,
+        const MeshResource &mesh,
+        const Material &material,
+        std::string name = ""
+    );
     RenderObject(const RenderObject &) = delete;
     RenderObject(RenderObject &&);
     ~RenderObject();

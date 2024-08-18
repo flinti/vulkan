@@ -8,25 +8,31 @@
 #include <vulkan/vulkan_core.h>
 #include <spdlog/spdlog.h>
 
-RenderObject::RenderObject(uint32_t id, Device &device, const Mesh &mesh, const Material &material, std::string name)
+RenderObject::RenderObject(
+    uint32_t id,
+    Device &device,
+    const MeshResource &mesh,
+    const Material &material,
+    std::string name
+)
     : device(&device),
     material(&material),
     transform(1.f), 
-    indexCount(mesh.getIndexCount()),
-    vertexCount(mesh.getVertexCount()),
-    indexType(mesh.getIndexType()),
+    indexCount(mesh.getData().getIndexCount()),
+    vertexCount(mesh.getData().getVertexCount()),
+    indexType(mesh.getData().getIndexType()),
     vertexBuffer(
         device.getAllocator(), 
-        (void *) mesh.getVertexData().data(), 
-        mesh.getVertexDataSize(), 
+        (void *) mesh.getData().getVertexData().data(), 
+        mesh.getData().getVertexDataSize(), 
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
     ),
     indexBuffer(
         indexCount > 0 
         ? std::make_unique<Buffer>(
             device.getAllocator(), 
-            (void *) mesh.getIndexData().data(), 
-            mesh.getIndexDataSize(), 
+            (void *) mesh.getData().getIndexData().data(), 
+            mesh.getData().getIndexDataSize(), 
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
         : nullptr
     ),

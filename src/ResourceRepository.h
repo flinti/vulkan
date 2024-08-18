@@ -4,6 +4,7 @@
 #include "Material.h"
 #include "Mesh.h"
 #include "Image.h"
+#include "Resource.h"
 #include "Shader.h"
 #include "third-party/tiny_obj_loader.h"
 
@@ -25,13 +26,11 @@ public:
 
     bool hasImage(const ResourceKey &name) const;
 
-    const Mesh &getMesh(const ResourceKey &name) const;
+    const MeshResource &getMesh(const ResourceKey &name) const;
     const MaterialResource &getMaterial(const ResourceKey &name) const;
     const ImageResource &getImage(const ResourceKey &name) const;
     const ShaderResource &getFragmentShader(const ResourceKey &name) const;
     const ShaderResource &getVertexShader(const ResourceKey &name) const;
-
-    bool insertMesh(const ResourceKey &name, Mesh mesh);
     
     void loadObj(const ResourceKey &name, const std::filesystem::path &path);
     void loadImage(const ResourceKey &name, const std::filesystem::path &path);
@@ -43,16 +42,18 @@ private:
     void load(const std::filesystem::path &path, const std::string extension);
     void loadAll();
 
-    std::vector<std::byte> readShaderFile(const std::filesystem::path &path);
+    std::unique_ptr<std::vector<std::byte>> readShaderFile(const std::filesystem::path &path);
     const MaterialResource *loadObjMaterial(const tinyobj::material_t &material);
 
-    std::unordered_map<ResourceKey, Mesh> meshes;
+    ResourceId nextResourceId = 1;
+
+    std::unordered_map<ResourceKey, MeshResource> meshes;
     std::unordered_map<ResourceKey, MaterialResource> materials;
     std::unordered_map<ResourceKey, ImageResource> images;
     std::unordered_map<ResourceKey, ShaderResource> vertexShaders;
     std::unordered_map<ResourceKey, ShaderResource> fragmentShaders;
 
-    const Mesh *defaultMesh = nullptr;
+    const MeshResource *defaultMesh = nullptr;
     const ImageResource *defaultImage = nullptr;
 };
 

@@ -18,6 +18,7 @@
 #include "DepthImage.h"
 #include "Image.h"
 #include "Material.h"
+#include "Resource.h"
 
 #include <cstddef>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -70,13 +71,13 @@ private:
     void addMaterial(std::unique_ptr<Material> material);
     std::pair<uint32_t, Material *> addMaterial(const MaterialResource &resource);
     uint32_t addObject(
-        const Mesh &mesh,
+        const MeshResource &mesh,
         const Material &material,
         glm::mat4 transform = glm::mat4{1.f},
         std::string name = ""
     );
     uint32_t addObject(
-        const Mesh &mesh,
+        const MeshResource &mesh,
         glm::mat4 transform = glm::mat4{1.f},
         std::string name = ""
     );
