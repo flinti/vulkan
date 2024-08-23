@@ -59,6 +59,7 @@ private:
     Buffer createParameterBuffer(const MaterialResource &resource);
 
     uint32_t id;
+    std::string name;
     Device &device;
     const ShaderResource &vertexShader;
     const ShaderResource &fragmentShader;
@@ -69,7 +70,6 @@ private:
     std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
     std::map<uint32_t, VkDescriptorImageInfo> descriptorImageInfos;
     std::map<uint32_t, VkDescriptorBufferInfo> descriptorBufferInfos;
-    std::string name;
 };
 
 #endif

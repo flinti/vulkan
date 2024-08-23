@@ -12,6 +12,7 @@
 
 Material::Material(Material &&other)
     : id(other.id),
+    name(std::move(other.name)),
     device(other.device),
     vertexShader(other.vertexShader),
     fragmentShader(other.fragmentShader),
@@ -21,8 +22,7 @@ Material::Material(Material &&other)
     parameterBuffer(std::move(other.parameterBuffer)),
     descriptorSetLayoutBindings(std::move(other.descriptorSetLayoutBindings)),
     descriptorImageInfos(std::move(other.descriptorImageInfos)),
-    descriptorBufferInfos(std::move(other.descriptorBufferInfos)),
-    name(std::move(other.name))
+    descriptorBufferInfos(std::move(other.descriptorBufferInfos))
 {
     other.sampler = VK_NULL_HANDLE;
 }
@@ -30,6 +30,7 @@ Material::Material(Material &&other)
 
 Material::Material(uint32_t id, Device &device, const MaterialResource &resource)
     : id(id),
+    name(resource.getData().name),
     device(device),
     vertexShader(*resource.getData().vertexShader),
     fragmentShader(*resource.getData().fragmentShader),
@@ -39,9 +40,9 @@ Material::Material(uint32_t id, Device &device, const MaterialResource &resource
     parameterBuffer(createParameterBuffer(resource)),
     descriptorSetLayoutBindings(createDescriptorSetLayoutBindings()),
     descriptorImageInfos(createDescriptorImageInfos()),
-    descriptorBufferInfos(createDescriptorBufferInfos()),
-    name(resource.getData().name)
+    descriptorBufferInfos(createDescriptorBufferInfos())
 {
+    spdlog::info("Material {}({}): created", id, name);
 }
 
 Material::~Material()
@@ -92,7 +93,7 @@ const std::map<uint32_t, VkDescriptorBufferInfo> &Material::getDescriptorBufferI
 
 std::vector<Image> Material::createImages(const std::vector<const ImageResource *> &imageResources)
 {
-    spdlog::info("Material {}: creating images", id);
+    spdlog::info("Material {}({}): creating images", id, name);
 
     std::vector<Image> images;
     images.reserve(imageResources.size());
@@ -101,14 +102,14 @@ std::vector<Image> Material::createImages(const std::vector<const ImageResource 
         images.emplace_back(device, *imageResource);
     }
 
-    spdlog::info("Material {}: created {} images", id, images.size());
+    spdlog::info("Material {}({}): created {} images", id, name, images.size());
 
     return images;
 }
 
 std::vector<Image> Material::createImages(const MaterialResource &resource)
 {
-    spdlog::info("Material {}: creating images", id);
+    spdlog::info("Material {}({}): creating images from MaterialResource", id, name);
     // TODO: the images for a single ImageResource should not be created multiple times
     const auto &resourceData = resource.getData();
     std::vector<const ImageResource *> imageResources;
@@ -130,11 +131,12 @@ std::vector<Image> Material::createImages(const MaterialResource &resource)
 
 std::vector<VkImageView> Material::createImageViews()
 {
-    spdlog::info("Material {}: creating image views", id);
+    size_t imageCount = images.size();
+    spdlog::info("Material {}({}): creating {} image views", id, name, imageCount);
 
-    std::vector<VkImageView> imageViews(images.size(), VK_NULL_HANDLE);
+    std::vector<VkImageView> imageViews(imageCount, VK_NULL_HANDLE);
 
-    for (size_t i = 0; i < images.size(); ++i) {
+    for (size_t i = 0; i < imageCount; ++i) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = images[i].getImageHandle();
@@ -178,9 +180,10 @@ VkSampler Material::requestSampler()
 
 std::vector<VkDescriptorSetLayoutBinding> Material::createDescriptorSetLayoutBindings()
 {
-    spdlog::info("Material {}: creating descriptor set layout bindings", id);
+    size_t bindingsCount = images.size() + 1;
+    spdlog::info("Material {}({}): creating {} descriptor set layout bindings", id, name, bindingsCount);
 
-    std::vector<VkDescriptorSetLayoutBinding> bindings(images.size() + 1, VkDescriptorSetLayoutBinding{});
+    std::vector<VkDescriptorSetLayoutBinding> bindings(bindingsCount, VkDescriptorSetLayoutBinding{});
 
     bindings[0] = {
         .binding = 0,
@@ -202,11 +205,12 @@ std::vector<VkDescriptorSetLayoutBinding> Material::createDescriptorSetLayoutBin
 
 std::map<uint32_t, VkDescriptorImageInfo> Material::createDescriptorImageInfos()
 {
-    spdlog::info("Material {}: creating image binding infos", id);
+    size_t imageCount = images.size();
+    spdlog::info("Material {}({}): creating {} image binding infos", id, name, imageCount);
 
     std::map<uint32_t, VkDescriptorImageInfo> imageBindingInfos;
 
-    for (size_t i = 0; i < images.size(); ++i) {
+    for (size_t i = 0; i < imageCount; ++i) {
         imageBindingInfos[i + 1] = VkDescriptorImageInfo{
             .sampler = sampler,
             .imageView = imageViews[i],
