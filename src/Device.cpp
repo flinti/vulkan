@@ -35,7 +35,7 @@ Device::Device(
 		transferCommandPool,
 		graphicsQueue)
 	),
-	objectCache(std::make_unique<VulkanObjectCache>(instance.getHandle(), physicalDevice, device))
+	objectCache(std::make_unique<VulkanObjectCache>(*this))
 {
 }
 

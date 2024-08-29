@@ -6,14 +6,13 @@
 #include "Image.h"
 #include "Resource.h"
 #include "Shader.h"
+#include "third-party/spirv_reflect/spirv_reflect.h"
 #include "third-party/tiny_obj_loader.h"
-
 #include <cstddef>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
 typedef std::string ResourceKey;
 
 class ResourceRepository
@@ -42,7 +41,8 @@ private:
     void load(const std::filesystem::path &path, const std::string extension);
     void loadAll();
 
-    std::unique_ptr<std::vector<std::byte>> readShaderFile(const std::filesystem::path &path);
+    Shader::DescriptorSetLayoutBindingMap getShaderBindings(const spv_reflect::ShaderModule &code);
+    std::vector<std::byte> readShaderFile(const std::filesystem::path &path);
     const MaterialResource *loadObjMaterial(const tinyobj::material_t &material);
 
     ResourceId nextResourceId = 1;

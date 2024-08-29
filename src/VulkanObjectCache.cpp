@@ -1,21 +1,22 @@
 #include "VulkanObjectCache.h"
 #include "DescriptorSetLayout.h"
+#include "Device.h"
+#include "Resource.h"
 #include "VkHelpers.h"
 #include "VkHash.h"
+#include <memory>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan_core.h>
 
-VulkanObjectCache::VulkanObjectCache(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device)
-    : instance(instance),
-    physicalDevice(physicalDevice),
-    device(device)
+VulkanObjectCache::VulkanObjectCache(Device &device)
+    : device(device)
 {
 }
 
 VulkanObjectCache::~VulkanObjectCache()
 {
     for (auto &sampler : samplers) {
-        vkDestroySampler(device, sampler.second, nullptr);
+        vkDestroySampler(device.getDeviceHandle(), sampler.second, nullptr);
     }
 }
 
@@ -28,7 +29,7 @@ VkSampler VulkanObjectCache::getSampler(const VkSamplerCreateInfo &info)
         return i->second;
     }
     VkSampler newSampler = VK_NULL_HANDLE;
-    VK_ASSERT(vkCreateSampler(device, &info, nullptr, &newSampler));
+    VK_ASSERT(vkCreateSampler(device.getDeviceHandle(), &info, nullptr, &newSampler));
     samplers.emplace(hash, newSampler);
 
     spdlog::info("VulkanObjectCache: created sampler {}", (void*) newSampler);
@@ -52,10 +53,47 @@ DescriptorSetLayout &VulkanObjectCache::getDescriptorSetLayout(
 
     DescriptorSetLayout &layout = *descriptorSetLayouts.emplace(
         hash,
-        std::make_unique<DescriptorSetLayout>(device, bindings)
+        std::make_unique<DescriptorSetLayout>(device.getDeviceHandle(), bindings)
     ).first->second;
 
     spdlog::info("VulkanObjectCache: created descriptor set layout at {}", (void*) &layout);
 
     return layout;
+}
+
+
+Image &VulkanObjectCache::getImage(const ImageResource &resource)
+{
+    ResourceId id = resource.getId();
+    auto i = images.find(id);
+    if (i != images.end()) {
+        return *i->second;
+    }
+
+    Image &image = *images.emplace(
+        id,
+        std::make_unique<Image>(device, resource)
+    ).first->second;
+
+    spdlog::info("VulkanObjectCache: created Image at {}", (void*) &image);
+
+    return image;
+}
+
+Shader &VulkanObjectCache::getShader(const ShaderResource &resource)
+{
+    ResourceId id = resource.getId();
+    auto i = shaders.find(id);
+    if (i != shaders.end()) {
+        return *i->second;
+    }
+
+    Shader &shader = *shaders.emplace(
+        id,
+        std::make_unique<Shader>(device, resource)
+    ).first->second;
+
+    spdlog::info("VulkanObjectCache: created Shader at {}", (void*) &shader);
+
+    return shader;
 }

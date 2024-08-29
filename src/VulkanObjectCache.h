@@ -3,16 +3,21 @@
 
 #include "DescriptorSet.h"
 #include "DescriptorSetLayout.h"
+#include "Image.h"
+#include "Resource.h"
+#include "Shader.h"
 #include <memory>
 #include <unordered_map>
 #include <vulkan/vulkan_core.h>
+
+class Device;
 
 class VulkanObjectCache
 {
 public:
     typedef size_t KeyType;
 
-    VulkanObjectCache(VkInstance instance, VkPhysicalDevice physicalDevice, VkDevice device);
+    VulkanObjectCache(Device &device);
     VulkanObjectCache(const VulkanObjectCache &) = delete;
     ~VulkanObjectCache();
 
@@ -21,13 +26,15 @@ public:
         const std::vector<VkDescriptorSetLayoutBinding> &bindings,
         VkDescriptorSetLayoutCreateFlags flags = 0
     );
+    Image &getImage(const ImageResource &resource);
+    Shader &getShader(const ShaderResource &resource);
 private:
-    VkInstance instance;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-
+    Device &device;
+    
     std::unordered_map<KeyType, VkSampler> samplers;
     std::unordered_map<KeyType, std::unique_ptr<DescriptorSetLayout>> descriptorSetLayouts;
+    std::unordered_map<ResourceId, std::unique_ptr<Image>> images;
+    std::unordered_map<ResourceId, std::unique_ptr<Shader>> shaders;
 };
 
 #endif

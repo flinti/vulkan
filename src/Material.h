@@ -48,8 +48,8 @@ public:
     const std::map<uint32_t, VkDescriptorImageInfo> &getDescriptorImageInfos() const;
     const std::map<uint32_t, VkDescriptorBufferInfo> &getDescriptorBufferInfos() const;
 private:
-    std::vector<Image> createImages(const std::vector<const ImageResource *> &imageResources);
-    std::vector<Image> createImages(const MaterialResource &resource);
+    std::vector<Image *> createImages(const std::vector<const ImageResource *> &imageResources);
+    std::vector<Image *> createImages(const MaterialResource &resource);
     std::vector<VkImageView>  createImageViews();
     VkSampler requestSampler();
     std::vector<VkDescriptorSetLayoutBinding> createDescriptorSetLayoutBindings();
@@ -63,7 +63,7 @@ private:
     Device &device;
     const ShaderResource &vertexShader;
     const ShaderResource &fragmentShader;
-    std::vector<Image> images;
+    std::vector<Image *> images;
     std::vector<VkImageView> imageViews;
     VkSampler sampler = VK_NULL_HANDLE;
     Buffer parameterBuffer;

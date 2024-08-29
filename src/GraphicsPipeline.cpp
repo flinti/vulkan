@@ -8,9 +8,16 @@
 #include "RenderPass.h"
 #include "VkHelpers.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <spdlog/fmt/fmt.h>
 #include <array>
+#include <spdlog/spdlog.h>
+#include <stdexcept>
+#include <unordered_map>
+#include <utility>
 #include <vector>
+#include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
 GraphicsPipeline::GraphicsPipeline(
@@ -24,10 +31,99 @@ GraphicsPipeline::GraphicsPipeline(
 		device.getObjectCache().getDescriptorSetLayout(material.getDescriptorSetLayoutBindings())
 	)
 {
-	createPipelineLayout();
+	Shader &vertexShader = device.getObjectCache().getShader(material.getVertexShaderResource());
+	Shader &fragmentShader = device.getObjectCache().getShader(material.getFragmentShaderResource());
+
+	auto globalBindings = RenderObject::getGlobalUniformDataLayoutBindings();
+	const auto &materialBindings = material.getDescriptorSetLayoutBindings();
+	std::unordered_map<uint32_t, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding>> pipelineBindings;
+
+	// global bindings: set = 0
+	for (const auto &binding : globalBindings) {
+		pipelineBindings[0][binding.binding] = binding;
+	}
+	// material bindings: set = 1
+	for (const auto &binding : materialBindings) {
+		pipelineBindings[1][binding.binding] = binding;
+	}
+
+	std::array<Shader *, 2> shaderArray = {
+		&vertexShader,
+		&fragmentShader
+	};
+
+	// check shader compatibility
+	for (Shader *shader : shaderArray) {
+		auto shaderStage = shader->getResource().getData().stage;
+		std::string shaderName;
+		if (shaderStage & VK_SHADER_STAGE_VERTEX_BIT) {
+			shaderName = "vertex";
+		}
+		else if (shaderStage & VK_SHADER_STAGE_FRAGMENT_BIT) {
+			shaderName = "fragment";
+		}
+
+		for (const auto &setAndBindings : shader->getDescriptorSetLayoutBindingMap()) {
+			for (const auto &binding : setAndBindings.second) {
+				auto pipelineSetIter = pipelineBindings.find(setAndBindings.first);
+				if (pipelineSetIter == pipelineBindings.end()) {
+					throw std::invalid_argument(fmt::format(
+						"material {} shader has excess descriptor set: set = {}",
+						shaderName,
+						setAndBindings.first
+					));
+				}
+
+				const auto &setBindings = pipelineSetIter->second;
+				auto pipelineBindingIter = setBindings.find(binding.binding);
+
+				if (pipelineBindingIter == setBindings.end()
+					|| !(pipelineBindingIter->second.stageFlags & shaderStage)
+				) {
+					throw std::invalid_argument(fmt::format(
+						"material {} shader has excess descriptor set binding: set = {}, binding = {}",
+						shaderName,
+						setAndBindings.first,
+						binding.binding
+					));
+				}
+
+				if (pipelineBindingIter->second.descriptorType != binding.descriptorType) {
+					throw std::invalid_argument(fmt::format(
+						"material {} shader has incompatible descriptor type: set = {}, binding = {}; type shader: {}, type pipeline: {}",
+						shaderName,
+						setAndBindings.first,
+						binding.binding,
+						string_VkDescriptorType(binding.descriptorType),
+						string_VkDescriptorType(pipelineBindingIter->second.descriptorType)
+					));
+				}
+
+				if (pipelineBindingIter->second.descriptorCount != binding.descriptorCount) {
+					throw std::invalid_argument(fmt::format(
+						"material {} shader has incompatible descriptor count: set = {}, binding = {}; count shader: {}, count pipeline: {}",
+						shaderName,
+						setAndBindings.first,
+						binding.binding,
+						binding.descriptorCount,
+						pipelineBindingIter->second.descriptorCount
+					));
+				}
+			}
+		}
+	}
+
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = {
+		device.getObjectCache().getDescriptorSetLayout(globalBindings).getHandle(),
+		materialDescriptorSetLayout.getHandle()
+	};
+
+	createPipelineLayout(
+		descriptorSetLayouts
+	);
 	createPipeline(
-		material.getVertexShaderResource(),
-		material.getFragmentShaderResource()
+		vertexShader,
+		fragmentShader
 	);
 }
 
@@ -107,19 +203,13 @@ std::vector<VkDescriptorSetLayoutBinding> GraphicsPipeline::createGlobalUniformD
 	};
 }
 
-void GraphicsPipeline::createPipelineLayout()
+void GraphicsPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts)
 {
 	VkPushConstantRange pushConstantRange{};
 	pushConstantRange.offset = 0;
 	pushConstantRange.size = sizeof(PushConstants);
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = {
-		device.getObjectCache().getDescriptorSetLayout(
-			RenderObject::getGlobalUniformDataLayoutBindings()
-		).getHandle(),
-		materialDescriptorSetLayout.getHandle()
-	};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
@@ -135,37 +225,24 @@ void GraphicsPipeline::createPipelineLayout()
 	));
 }
 
-VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<std::byte> &shader)
+void GraphicsPipeline::createPipeline(const Shader &vertexShader, const Shader &fragmentShader)
 {
-	VkShaderModuleCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = shader.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(shader.data());
-
-	VkShaderModule shaderModule = VK_NULL_HANDLE;
-	VkResult result = vkCreateShaderModule(device.getDeviceHandle(), &createInfo, nullptr, &shaderModule);
-	if (result != VK_SUCCESS) {
-		throw std::runtime_error(fmt::format("vkCreateShaderModule failed with code {}", (int32_t) result));
+	if (!(vertexShader.getResource().getData().stage & VK_SHADER_STAGE_VERTEX_BIT)) {
+		throw std::invalid_argument("vertexShader is not suited for the vertex stage");
 	}
-
-	return shaderModule;
-}
-
-void GraphicsPipeline::createPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader)
-{
-	// shaders
-	VkShaderModule vertShaderModule = createShaderModule(vertexShader.getData());
-    VkShaderModule fragShaderModule = createShaderModule(fragmentShader.getData());
+	if (!(fragmentShader.getResource().getData().stage & VK_SHADER_STAGE_FRAGMENT_BIT)) {
+		throw std::invalid_argument("fragmentShader is not suited for the fragment stage");
+	}
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageInfos = {};
 	shaderStageInfos[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStageInfos[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-	shaderStageInfos[0].module = vertShaderModule;
+	shaderStageInfos[0].module = vertexShader.getShaderModule();
 	shaderStageInfos[0].pName = "main";
 
 	shaderStageInfos[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStageInfos[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	shaderStageInfos[1].module = fragShaderModule;
+	shaderStageInfos[1].module = fragmentShader.getShaderModule();
 	shaderStageInfos[1].pName = "main";
 
 
@@ -281,7 +358,4 @@ void GraphicsPipeline::createPipeline(const ShaderResource &vertexShader, const 
 		nullptr, 
 		&pipeline
 	));
-
-	vkDestroyShaderModule(device.getDeviceHandle(), vertShaderModule, nullptr);
-	vkDestroyShaderModule(device.getDeviceHandle(), fragShaderModule, nullptr);
 }

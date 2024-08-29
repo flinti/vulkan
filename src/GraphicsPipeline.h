@@ -47,9 +47,8 @@ public:
     void pushConstants(VkCommandBuffer commandBuffer, const void *data, size_t size);
 private:
     std::vector<VkDescriptorSetLayoutBinding> createGlobalUniformDataLayoutBindings();
-    void createPipelineLayout();
-    VkShaderModule createShaderModule(const std::vector<std::byte> &shader);
-    void createPipeline(const ShaderResource &vertexShader, const ShaderResource &fragmentShader);
+    void createPipelineLayout(const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts);
+    void createPipeline(const Shader &vertexShader, const Shader &fragmentShader);
 
     Device &device;
     const RenderPass &renderPass;

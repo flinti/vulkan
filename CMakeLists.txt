@@ -21,7 +21,13 @@ link_libraries(glfw)
 link_libraries(Vulkan::Vulkan)
 target_link_libraries(GPUOpen::VulkanMemoryAllocator)
 
-file(GLOB vulkan_srcs CONFIGURE_DEPENDS "src/*.h" "src/*.cpp" "src/third-party/*.h" "src/third-party/*.cpp")
+file(GLOB vulkan_srcs CONFIGURE_DEPENDS
+    "src/*.h"
+    "src/*.cpp"
+    "src/third-party/*.h"
+    "src/third-party/*.cpp"
+    "src/third-party/spirv_reflect/*.cpp"
+)
 
 add_executable(application ${vulkan_srcs})
 

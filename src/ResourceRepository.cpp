@@ -223,35 +223,6 @@ void ResourceRepository::loadObj(const ResourceKey &name, const std::filesystem:
     );
 }
 
-
-const MaterialResource *ResourceRepository::loadObjMaterial(const tinyobj::material_t &material)
-{
-    const auto iter = materials.find(material.name);
-    if (iter != materials.end()) {
-        return &iter->second;
-    }
-
-    spdlog::info("Loading material {}, ambient texture {} ", material.name, material.ambient_texname);
-
-    return &materials.emplace(material.name, 
-        MaterialResource{
-            nextResourceId++,
-            std::unique_ptr<MaterialResourceData>(new MaterialResourceData{
-                .ambient = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]),
-                .diffuse = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
-                .specular = glm::vec3(material.specular[0], material.specular[1], material.specular[2]),
-                .shininess = material.shininess,
-                .ambientTexture = hasImage(material.ambient_texname) ? &getImage(material.ambient_texname) : nullptr,
-                .diffuseTexture = hasImage(material.diffuse_texname) ? &getImage(material.diffuse_texname) : nullptr,
-                .specularTexture = hasImage(material.specular_texname) ? &getImage(material.specular_texname) : nullptr,
-                .normalTexture = hasImage(material.normal_texname) ? &getImage(material.normal_texname) : nullptr,
-                .vertexShader = &getVertexShader("shader/shader.vert"),
-                .fragmentShader = &getFragmentShader("shader/shader.frag"),
-                .name{material.name},
-        }),
-    }).first->second;
-}
-
 void ResourceRepository::loadImage(const ResourceKey &name, const std::filesystem::path &path)
 {
     spdlog::info("Loading image {} ", path.string());
@@ -284,13 +255,33 @@ void ResourceRepository::loadImage(const ResourceKey &name, const std::filesyste
 void ResourceRepository::loadFragmentShader(const ResourceKey &name, const std::filesystem::path &path)
 {
     spdlog::info("Loading fragment shader {} ", path.string());
-    fragmentShaders.emplace(name, ShaderResource{nextResourceId++, readShaderFile(path)});
+    auto shaderCode = readShaderFile(path);
+    spv_reflect::ShaderModule reflectModule{shaderCode.size(), shaderCode.data()};
+
+    fragmentShaders.emplace(name, ShaderResource{
+        nextResourceId++,
+        std::unique_ptr<ShaderResourceData>(new ShaderResourceData{
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            std::move(shaderCode),
+            getShaderBindings(reflectModule),
+        }),
+    });
 }
 
 void ResourceRepository::loadVertexShader(const ResourceKey &name, const std::filesystem::path &path)
 {
     spdlog::info("Loading vertex shader {} ", path.string());
-    vertexShaders.emplace(name, ShaderResource{nextResourceId++, readShaderFile(path)});
+    auto shaderCode = readShaderFile(path);
+    spv_reflect::ShaderModule reflectModule{shaderCode.size(), shaderCode.data()};
+    
+    vertexShaders.emplace(name, ShaderResource{
+        nextResourceId++,
+        std::unique_ptr<ShaderResourceData>(new ShaderResourceData{
+            VK_SHADER_STAGE_VERTEX_BIT,
+            std::move(shaderCode),
+            getShaderBindings(reflectModule),
+        })
+    });
 }
 
 std::string ResourceRepository::resourceTree(size_t indentationLevel) const
@@ -397,7 +388,39 @@ void ResourceRepository::loadAll()
     }
 }
 
-std::unique_ptr<std::vector<std::byte>> ResourceRepository::readShaderFile(const std::filesystem::path &path)
+Shader::DescriptorSetLayoutBindingMap ResourceRepository::getShaderBindings(const spv_reflect::ShaderModule &code)
+{
+    uint32_t setCount = 0;
+    code.EnumerateDescriptorSets(&setCount, nullptr);
+    std::vector<SpvReflectDescriptorSet *> sets{setCount, nullptr};
+    code.EnumerateDescriptorSets(&setCount, sets.data());
+
+    Shader::DescriptorSetLayoutBindingMap bindingMap;
+
+    for (size_t setIndex = 0; setIndex < sets.size(); ++setIndex) {
+        const SpvReflectDescriptorSet &reflectDescriptorSet = *(sets[setIndex]);
+        auto &layoutBindings = bindingMap[reflectDescriptorSet.set];
+
+        layoutBindings.assign(reflectDescriptorSet.binding_count, VkDescriptorSetLayoutBinding{});
+
+        for (uint32_t bindingIndex = 0; bindingIndex < reflectDescriptorSet.binding_count; ++bindingIndex) {
+            const SpvReflectDescriptorBinding& reflectBinding = *(reflectDescriptorSet.bindings[bindingIndex]);
+            VkDescriptorSetLayoutBinding &layoutBinding = layoutBindings[bindingIndex];
+
+            layoutBinding.binding = reflectBinding.binding;
+            layoutBinding.descriptorType = static_cast<VkDescriptorType>(reflectBinding.descriptor_type);
+            layoutBinding.descriptorCount = 1;
+            for (uint32_t dimensionIndex = 0; dimensionIndex < reflectBinding.array.dims_count; ++dimensionIndex) {
+                layoutBinding.descriptorCount *= reflectBinding.array.dims[dimensionIndex];
+            }
+            layoutBinding.stageFlags = static_cast<VkShaderStageFlagBits>(code.GetShaderStage());
+        }
+    }
+
+    return bindingMap;
+}
+
+std::vector<std::byte> ResourceRepository::readShaderFile(const std::filesystem::path &path)
 {
     {
         std::array<char, 4> magicNumber{0, 0, 0, 0};
@@ -409,5 +432,33 @@ std::unique_ptr<std::vector<std::byte>> ResourceRepository::readShaderFile(const
         }
     }
 
-    return std::make_unique<std::vector<std::byte>>(std::move(Utility::readFile(path)));
+    return Utility::readFile(path);
+}
+
+const MaterialResource *ResourceRepository::loadObjMaterial(const tinyobj::material_t &material)
+{
+    const auto iter = materials.find(material.name);
+    if (iter != materials.end()) {
+        return &iter->second;
+    }
+
+    spdlog::info("Loading material {}, ambient texture {} ", material.name, material.ambient_texname);
+
+    return &materials.emplace(material.name, 
+        MaterialResource{
+            nextResourceId++,
+            std::unique_ptr<MaterialResourceData>(new MaterialResourceData{
+                .ambient = glm::vec3(material.ambient[0], material.ambient[1], material.ambient[2]),
+                .diffuse = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
+                .specular = glm::vec3(material.specular[0], material.specular[1], material.specular[2]),
+                .shininess = material.shininess,
+                .ambientTexture = hasImage(material.ambient_texname) ? &getImage(material.ambient_texname) : nullptr,
+                .diffuseTexture = hasImage(material.diffuse_texname) ? &getImage(material.diffuse_texname) : nullptr,
+                .specularTexture = hasImage(material.specular_texname) ? &getImage(material.specular_texname) : nullptr,
+                .normalTexture = hasImage(material.normal_texname) ? &getImage(material.normal_texname) : nullptr,
+                .vertexShader = &getVertexShader("shader/shader.vert"),
+                .fragmentShader = &getFragmentShader("shader/shader.frag"),
+                .name{material.name},
+        }),
+    }).first->second;
 }

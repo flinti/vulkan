@@ -2,11 +2,15 @@
 #define RESOURCE_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <glm/vec3.hpp>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
+#include <vulkan/vulkan_core.h>
 
 class Mesh;
 
@@ -62,7 +66,12 @@ const T &Resource<T>::getData() const
     return *data.get();
 }
 
-typedef std::vector<std::byte> ShaderResourceData;
+struct ShaderResourceData
+{
+    VkShaderStageFlags stage;
+    std::vector<std::byte> code;
+    std::unordered_map<uint32_t, std::vector<VkDescriptorSetLayoutBinding>> bindings;
+};
 typedef Resource<ShaderResourceData> ShaderResource;
 
 struct ImageResourceData

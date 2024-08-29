@@ -10,24 +10,6 @@
 #include <vulkan/vulkan_core.h>
 
 
-Material::Material(Material &&other)
-    : id(other.id),
-    name(std::move(other.name)),
-    device(other.device),
-    vertexShader(other.vertexShader),
-    fragmentShader(other.fragmentShader),
-    images(std::move(other.images)),
-    imageViews(std::move(other.imageViews)),
-    sampler(other.sampler),
-    parameterBuffer(std::move(other.parameterBuffer)),
-    descriptorSetLayoutBindings(std::move(other.descriptorSetLayoutBindings)),
-    descriptorImageInfos(std::move(other.descriptorImageInfos)),
-    descriptorBufferInfos(std::move(other.descriptorBufferInfos))
-{
-    other.sampler = VK_NULL_HANDLE;
-}
-
-
 Material::Material(uint32_t id, Device &device, const MaterialResource &resource)
     : id(id),
     name(resource.getData().name),
@@ -43,6 +25,23 @@ Material::Material(uint32_t id, Device &device, const MaterialResource &resource
     descriptorBufferInfos(createDescriptorBufferInfos())
 {
     spdlog::info("Material {}({}): created", id, name);
+}
+
+Material::Material(Material &&other)
+    : id(other.id),
+    name(std::move(other.name)),
+    device(other.device),
+    vertexShader(other.vertexShader),
+    fragmentShader(other.fragmentShader),
+    images(std::move(other.images)),
+    imageViews(std::move(other.imageViews)),
+    sampler(other.sampler),
+    parameterBuffer(std::move(other.parameterBuffer)),
+    descriptorSetLayoutBindings(std::move(other.descriptorSetLayoutBindings)),
+    descriptorImageInfos(std::move(other.descriptorImageInfos)),
+    descriptorBufferInfos(std::move(other.descriptorBufferInfos))
+{
+    other.sampler = VK_NULL_HANDLE;
 }
 
 Material::~Material()
@@ -91,15 +90,15 @@ const std::map<uint32_t, VkDescriptorBufferInfo> &Material::getDescriptorBufferI
 }
 
 
-std::vector<Image> Material::createImages(const std::vector<const ImageResource *> &imageResources)
+std::vector<Image *> Material::createImages(const std::vector<const ImageResource *> &imageResources)
 {
     spdlog::info("Material {}({}): creating images", id, name);
 
-    std::vector<Image> images;
+    std::vector<Image *> images;
     images.reserve(imageResources.size());
 
     for (const ImageResource *imageResource : imageResources) {
-        images.emplace_back(device, *imageResource);
+        images.emplace_back(&device.getObjectCache().getImage(*imageResource));
     }
 
     spdlog::info("Material {}({}): created {} images", id, name, images.size());
@@ -107,7 +106,7 @@ std::vector<Image> Material::createImages(const std::vector<const ImageResource 
     return images;
 }
 
-std::vector<Image> Material::createImages(const MaterialResource &resource)
+std::vector<Image *> Material::createImages(const MaterialResource &resource)
 {
     spdlog::info("Material {}({}): creating images from MaterialResource", id, name);
     // TODO: the images for a single ImageResource should not be created multiple times
@@ -139,7 +138,7 @@ std::vector<VkImageView> Material::createImageViews()
     for (size_t i = 0; i < imageCount; ++i) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = images[i].getImageHandle();
+        viewInfo.image = images[i]->getImageHandle();
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
