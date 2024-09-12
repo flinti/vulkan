@@ -17,6 +17,7 @@ public:
     void setAspect(float aspect);
     void setRadius(float radius);
     void addRadius(float dr);
+    void addFar(float dzFar);
     void setCenter(glm::vec3 center);
     void moveCenter(glm::vec3 dc);
 private:

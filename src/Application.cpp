@@ -247,7 +247,7 @@ void Application::createInitialObjects()
 
 	spdlog::info("add cone...");
 	addObject(
-		resourceRepository->getMesh("mesh/cube"),
+		resourceRepository->getMesh("mesh/Low-Poly Plant_"),
 		glm::mat4{1.f},
 		"mid"
 	);
@@ -377,6 +377,11 @@ void Application::handleInput()
 	double mouseX;
 	double mouseY;
 	glfwGetCursorPos(window, &mouseX, &mouseY);
+
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+		radialSensitivity *= 10.f;
+		rotationSensitivity *= 10.f;
+	}
 
 	if (scrollY != 0.0) {
 		camera.addRadius(- radialSensitivity * scrollY);
@@ -683,7 +688,15 @@ void Application::onScrolled(GLFWwindow* window, double xoffset, double yoffset)
 void Application::onKeyEvent(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	auto *myThis = static_cast<Application *>(glfwGetWindowUserPointer(window));
-	if (key == GLFW_KEY_P && action == GLFW_PRESS) {
-		myThis->paused = !myThis->paused;
+	if (action == GLFW_PRESS){
+		if (key == GLFW_KEY_P) {
+			myThis->paused = !myThis->paused;
+		}
+		else if (key == GLFW_KEY_KP_ADD) {
+			myThis->camera.addFar(10.f);
+		}
+		else if (key == GLFW_KEY_KP_SUBTRACT) {
+			myThis->camera.addFar(-10.f);
+		}
 	}
 }

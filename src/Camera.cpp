@@ -105,6 +105,14 @@ void Camera::addRadius(float dr)
     setRadius(r + dr);
 }
 
+
+void Camera::addFar(float dzFar)
+{
+    this->zFar = std::clamp(this->zFar + dzFar, 1.f, 10000.f);
+    p = perspective(fovy, aspect, zNear, zFar);
+    updateTransform();
+}
+
 void Camera::setCenter(glm::vec3 center)
 {
     this->center = center;
