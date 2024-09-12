@@ -330,7 +330,7 @@ void ResourceRepository::load(const path &path, const std::string extension)
         if (extension == ".obj") {
             loadObj(resourceName, path);
         }
-        else if (extension == ".png") {
+        else if (extension == ".png" || extension == ".jpg") {
             loadImage(resourceName, path);
         }
         else if(extension == ".spv") {
